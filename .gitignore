@@ -1,0 +1,5 @@
+.env
+.agentbox-state
+.agentbox-known-hosts
+.agentbox-known-hosts.old
+.idea/
