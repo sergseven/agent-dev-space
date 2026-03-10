@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 SETUP_SCRIPT="$SCRIPT_DIR/scripts/setup-vm.sh"
 STATE_FILE="$SCRIPT_DIR/.agentbox-state"
+KNOWN_HOSTS_FILE="$SCRIPT_DIR/.agentbox-known-hosts"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -16,6 +17,19 @@ NC='\033[0m'
 log()  { echo -e "${GREEN}[agentbox]${NC} $1"; }
 warn() { echo -e "${YELLOW}[agentbox]${NC} $1"; }
 err()  { echo -e "${RED}[agentbox]${NC} $1" >&2; }
+
+# --- SSH helper (all SSH commands use the same known_hosts) ---
+vm_ssh() {
+  ssh -o "UserKnownHostsFile=$KNOWN_HOSTS_FILE" \
+      -o "StrictHostKeyChecking=no" \
+      "$@"
+}
+
+vm_scp() {
+  scp -o "UserKnownHostsFile=$KNOWN_HOSTS_FILE" \
+      -o "StrictHostKeyChecking=no" \
+      "$@"
+}
 
 # --- Load .env ---
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -30,7 +44,6 @@ parse_env() {
   local default="${2:-}"
   local value
   value="$(grep "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
-  # Trim surrounding quotes if present
   value="${value%\"}"
   value="${value#\"}"
   value="${value%\'}"
@@ -39,19 +52,16 @@ parse_env() {
 }
 
 HETZNER_API_TOKEN="$(parse_env HETZNER_API_TOKEN)"
-ANTHROPIC_API_KEY="$(parse_env ANTHROPIC_API_KEY)"
 SSH_PUBLIC_KEY_PATH="$(parse_env SSH_PUBLIC_KEY_PATH "$HOME/.ssh/id_ed25519.pub")"
 HETZNER_REGION="$(parse_env HETZNER_REGION "nbg1")"
 HETZNER_SERVER_TYPE="$(parse_env HETZNER_SERVER_TYPE "")"
 
+# Expand ~ to $HOME (tilde doesn't expand when read from file)
+SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH/#\~/$HOME}"
+
 # --- Validate required values ---
 if [[ -z "$HETZNER_API_TOKEN" ]]; then
   err "HETZNER_API_TOKEN is required in .env"
-  exit 1
-fi
-
-if [[ -z "$ANTHROPIC_API_KEY" ]]; then
-  err "ANTHROPIC_API_KEY is required in .env"
   exit 1
 fi
 
@@ -125,10 +135,10 @@ select_server_type() {
 
   echo ""
   echo -e "${CYAN}Select server type:${NC}"
-  echo "  1) cx22  — 2 vCPU,   4GB RAM,   40GB SSD — ~€4/mo"
-  echo "  2) cx32  — 4 vCPU,   8GB RAM,   80GB SSD — ~€8/mo"
-  echo "  3) cx42  — 8 vCPU,  16GB RAM,  160GB SSD — ~€16/mo"
-  echo "  4) cx52  — 16 vCPU, 32GB RAM,  320GB SSD — ~€31/mo"
+  echo "  1) cx23  — 2 vCPU,   4GB RAM,   40GB SSD — ~€3/mo"
+  echo "  2) cx33  — 4 vCPU,   8GB RAM,   80GB SSD — ~€5/mo"
+  echo "  3) cx43  — 8 vCPU,  16GB RAM,  160GB SSD — ~€9/mo"
+  echo "  4) cx53  — 16 vCPU, 32GB RAM,  320GB SSD — ~€17/mo"
   echo ""
 
   local choice
@@ -136,10 +146,10 @@ select_server_type() {
   choice="${choice:-1}"
 
   case "$choice" in
-    1) HETZNER_SERVER_TYPE="cx22" ;;
-    2) HETZNER_SERVER_TYPE="cx32" ;;
-    3) HETZNER_SERVER_TYPE="cx42" ;;
-    4) HETZNER_SERVER_TYPE="cx52" ;;
+    1) HETZNER_SERVER_TYPE="cx23" ;;
+    2) HETZNER_SERVER_TYPE="cx33" ;;
+    3) HETZNER_SERVER_TYPE="cx43" ;;
+    4) HETZNER_SERVER_TYPE="cx53" ;;
     *)
       err "Invalid choice: $choice"
       exit 1
@@ -216,6 +226,9 @@ create_server() {
   fi
 
   log "Server created (id: $SERVER_ID)"
+
+  # Save state immediately so we can clean up on failure
+  save_state
 }
 
 # --- Wait for server to be ready ---
@@ -243,16 +256,22 @@ wait_for_server() {
 
   echo ""
   log "Server is running at $SERVER_IP"
+
+  # Update state with IP
+  save_state
 }
 
 # --- Wait for SSH to be available ---
 wait_for_ssh() {
   log "Waiting for SSH to become available..."
 
+  # Clear stale entries for this IP
+  ssh-keygen -R "$SERVER_IP" -f "$KNOWN_HOSTS_FILE" &>/dev/null || true
+
   local attempts=0
   local max_attempts=30
 
-  while ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
+  while ! vm_ssh -o ConnectTimeout=5 -o BatchMode=yes \
     "root@$SERVER_IP" "echo ok" &>/dev/null; do
     if (( attempts >= max_attempts )); then
       err "SSH did not become available within ${max_attempts} attempts"
@@ -267,42 +286,14 @@ wait_for_ssh() {
   log "SSH is ready"
 }
 
-# --- Pin SSH host key ---
-pin_host_key() {
-  log "Pinning SSH host key..."
-  local known_hosts_file="$SCRIPT_DIR/.agentbox-known-hosts"
-
-  # Remove stale entry if re-provisioning
-  ssh-keygen -R "$SERVER_IP" -f "$known_hosts_file" &>/dev/null || true
-
-  local attempts=0
-  local max_attempts=10
-  while ! ssh-keyscan -t ed25519 "$SERVER_IP" >> "$known_hosts_file" 2>/dev/null; do
-    if (( attempts >= max_attempts )); then
-      err "Could not obtain host key"
-      exit 1
-    fi
-    sleep 3
-    attempts=$((attempts + 1))
-  done
-
-  SSH_OPTS=(-o "UserKnownHostsFile=$known_hosts_file" -o "StrictHostKeyChecking=yes")
-  log "Host key pinned"
-}
-
 # --- Run setup script on VM ---
 run_setup() {
   log "Copying setup script to VM..."
-  scp "${SSH_OPTS[@]}" "$SETUP_SCRIPT" "root@$SERVER_IP:/tmp/setup-vm.sh"
-
-  log "Deploying API key to VM..."
-  ssh "${SSH_OPTS[@]}" "root@$SERVER_IP" \
-    "cat > /tmp/agentbox-env && chmod 600 /tmp/agentbox-env" \
-    <<< "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
+  vm_scp "$SETUP_SCRIPT" "root@$SERVER_IP:/tmp/setup-vm.sh"
 
   log "Running setup script on VM (this may take a few minutes)..."
-  ssh "${SSH_OPTS[@]}" "root@$SERVER_IP" \
-    "bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh /tmp/agentbox-env"
+  vm_ssh "root@$SERVER_IP" \
+    "bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"
 }
 
 # --- Save state ---
@@ -315,7 +306,6 @@ SERVER_TYPE=$HETZNER_SERVER_TYPE
 REGION=$HETZNER_REGION
 CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
-  log "State saved to $STATE_FILE"
 }
 
 # --- Main ---
@@ -329,9 +319,7 @@ main() {
   create_server
   wait_for_server
   wait_for_ssh
-  pin_host_key
   run_setup
-  save_state
 
   echo ""
   echo -e "${GREEN}=== Provisioning complete ===${NC}"
@@ -344,7 +332,7 @@ main() {
   echo -e "  ${YELLOW}To start coding:${NC}"
   echo "    ssh agentbox@$SERVER_IP"
   echo "    tmux new-session -s claude"
-  echo "    claude"
+  echo "    claude                        # authenticate on first run"
   echo ""
   echo -e "  ${YELLOW}To reconnect later:${NC}"
   echo "    ssh agentbox@$SERVER_IP"

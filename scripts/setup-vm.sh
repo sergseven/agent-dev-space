@@ -9,21 +9,6 @@ LOG_PREFIX="[setup-vm]"
 log()  { echo "$LOG_PREFIX $1"; }
 err()  { echo "$LOG_PREFIX ERROR: $1" >&2; }
 
-# --- Validate ---
-ENV_FILE="/tmp/agentbox-env"
-if [[ ! -f "$ENV_FILE" ]]; then
-  err "Environment file not found at $ENV_FILE"
-  exit 1
-fi
-
-# Read API key from env file (not from process args)
-ANTHROPIC_API_KEY="$(grep '^ANTHROPIC_API_KEY=' "$ENV_FILE" | cut -d= -f2-)"
-
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-  err "ANTHROPIC_API_KEY not found in $ENV_FILE"
-  exit 1
-fi
-
 # --- System update ---
 log "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
@@ -92,37 +77,25 @@ if ! su - agentbox -c "echo 'agentbox ssh ok'" &>/dev/null; then
   exit 1
 fi
 
-# --- Deploy Anthropic API key ---
-log "Deploying Anthropic API key..."
-BASHRC="$AGENTBOX_HOME/.bashrc"
-SECRETS_FILE="$AGENTBOX_HOME/.agentbox-secrets"
-
-# Write key to a dedicated file with restricted permissions
-echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" > "$SECRETS_FILE"
-chmod 600 "$SECRETS_FILE"
-chown agentbox:agentbox "$SECRETS_FILE"
-
-# Source secrets from .bashrc (idempotent)
-if ! grep -q 'source.*\.agentbox-secrets' "$BASHRC" 2>/dev/null; then
-  echo '[ -f ~/.agentbox-secrets ] && source ~/.agentbox-secrets' >> "$BASHRC"
-fi
-
-chown agentbox:agentbox "$BASHRC"
-
 # --- Harden SSH ---
 log "Hardening SSH..."
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
-# Disable password auth
+# Disable password auth (keep UsePAM yes — required for key auth on Ubuntu 24.04)
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
-sed -i 's/^#\?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' "$SSHD_CONFIG"
-sed -i 's/^#\?UsePAM.*/UsePAM no/' "$SSHD_CONFIG"
+sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
 
 # Disable root login
 sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
 
-# Restart SSH
-systemctl restart sshd
+# Validate config before restarting
+if ! sshd -t; then
+  err "SSH config validation failed. Skipping SSH restart to avoid lockout."
+  exit 1
+fi
+
+# Restart SSH (Ubuntu 24.04 uses ssh.service, not sshd.service)
+systemctl restart ssh
 
 # --- tmux config for agentbox ---
 log "Setting up tmux config..."
