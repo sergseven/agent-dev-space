@@ -14,9 +14,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-log()  { echo -e "${GREEN}[agentbox]${NC} $1"; }
-warn() { echo -e "${YELLOW}[agentbox]${NC} $1"; }
-err()  { echo -e "${RED}[agentbox]${NC} $1" >&2; }
+log()  { echo -e "${GREEN}[ads]${NC} $1"; }
+warn() { echo -e "${YELLOW}[ads]${NC} $1"; }
+err()  { echo -e "${RED}[ads]${NC} $1" >&2; }
 
 # --- SSH helper (all SSH commands use the same known_hosts) ---
 vm_ssh() {
@@ -311,7 +311,7 @@ EOF
 # --- Main ---
 main() {
   echo ""
-  echo -e "${CYAN}=== AgentBox Provisioner ===${NC}"
+  echo -e "${CYAN}=== Agent Dev Space ===${NC}"
   echo ""
 
   select_server_type

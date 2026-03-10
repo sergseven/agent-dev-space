@@ -70,7 +70,7 @@ tasks:
     desc: Show VM status and info
     cmds:
       - |
-        echo "=== AgentBox Status ==="
+        echo "=== Agent Dev Space Status ==="
         echo ""
         cat {{.STATE_FILE}}
         echo ""

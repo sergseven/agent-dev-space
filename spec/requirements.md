@@ -1,4 +1,4 @@
-# AgentBox — Requirements Specification
+# Agent Dev Space — Requirements Specification
 
 > Persistent cloud-hosted AI engineering workspace.
 
@@ -182,7 +182,7 @@ tmux attach -t claude
 | **S4-01** | Additional agents: Codex CLI, OpenCode, Aider — user picks which to use | 3        |
 | **S4-02** | Playwright MCP + Chromium in Docker — Claude can control a browser      | 1        |
 | **S4-03** | noVNC — user can observe/interact with the remote browser via web       | 2        |
-| **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agentbox.dev`            | 5        |
+| **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agent-dev-space.dev`            | 5        |
 | **S4-05** | MCP servers pre-installed: memory server, GitHub, filesystem            | 3        |
 
 ---

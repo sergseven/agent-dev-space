@@ -112,7 +112,7 @@ setw -g pane-base-index 1
 
 # Status bar
 set -g status-style 'bg=#333333 fg=#ffffff'
-set -g status-left '[agentbox] '
+set -g status-left '[ads] '
 set -g status-right '%H:%M '
 
 # Don't auto-rename windows
