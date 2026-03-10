@@ -156,6 +156,81 @@ tmux attach -t claude
 | **S2-04** | Basic firewall — only ports 22 (SSH) open, fail2ban installed                                               | 1        |
 | **S2-05** | Docker + Docker Compose pre-installed — for running user workloads                                          | 3        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
+| **S2-07** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below)                    | 1        |
+
+### S2-07: Provider Abstraction
+
+**Goal**: Provision the same workspace on different infrastructure. User sets `PROVIDER=xxx` and a token in `.env`, runs
+`task provision`, gets the same result regardless of backend.
+
+**Provider contract** — every provider must deliver:
+
+- An SSH-accessible machine (IP or hostname)
+- Ubuntu 24.04 or compatible
+- Ability to run the same `setup-vm.sh` script
+- Persistent storage that survives reboots
+- A way to destroy the workspace
+
+#### Provider A: Direct Cloud VMs (simple)
+
+API token → VM. Same model as current Hetzner, different API.
+
+| Provider               | .env config                                                | How it works                             |
+|------------------------|------------------------------------------------------------|------------------------------------------|
+| **Hetzner** (current)  | `HETZNER_API_TOKEN`                                        | Hetzner Cloud API → CX-series VM         |
+| **AWS EC2**            | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | EC2 API → t3.micro/small/medium instance |
+| **GCP Compute Engine** | `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY_PATH`           | GCE API → e2-micro/small/medium instance |
+| **DigitalOcean**       | `DO_API_TOKEN`                                             | DO API → Basic droplet                   |
+
+Each provider is a script in `providers/` (e.g. `providers/hetzner.sh`, `providers/aws.sh`) that implements:
+
+```bash
+provider_create    # → sets SERVER_IP, SERVER_ID
+provider_wait      # → blocks until SSH is ready
+provider_destroy   # → deletes the resource
+```
+
+`provision.sh` calls these functions instead of Hetzner API directly.
+
+#### Provider B: Kubernetes Pod-as-Workspace
+
+User has an existing K8s cluster. The workspace is a persistent pod with SSH access.
+
+| .env config         | Description                                              |
+|---------------------|----------------------------------------------------------|
+| `KUBECONFIG_PATH`   | Path to kubeconfig (or uses default `~/.kube/config`)    |
+| `K8S_NAMESPACE`     | Namespace for workspace pod (default: `agent-dev-space`) |
+| `K8S_STORAGE_CLASS` | Storage class for PVC (default: cluster default)         |
+| `K8S_NODE_SELECTOR` | Optional node selector (e.g. for GPU nodes)              |
+
+**How it works**:
+
+1. Creates a namespace (if not exists)
+2. Creates a PersistentVolumeClaim (10–100GB, persists `/home/agentbox`)
+3. Deploys a pod: Ubuntu 24.04 image, PVC mounted, SSH server running
+4. Exposes SSH via LoadBalancer Service or NodePort
+5. Runs `setup-vm.sh` inside the pod via `kubectl exec`
+6. Returns the external IP/port for SSH access
+
+**Pod spec essentials**:
+
+- Base image: Ubuntu 24.04 with sshd
+- Resources: configurable CPU/memory requests (maps to server type selection)
+- PVC: mounted at `/home/agentbox` for persistence across pod restarts
+- Liveness probe: sshd process
+- No restart limit: pod should always restart
+
+**Why K8s matters**: Companies with existing GKE/EKS clusters can run workspaces on their own infra without giving API
+tokens to a third-party service. Code never leaves their cloud account.
+
+#### .env changes
+
+```bash
+# Provider selection (default: hetzner)
+PROVIDER=hetzner    # options: hetzner, aws, gcp, digitalocean, kubernetes
+```
+
+Provider-specific variables are only required when that provider is selected.
 
 ---
 
