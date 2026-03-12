@@ -135,20 +135,68 @@ echo ""
 log "Current server: $SERVER_NAME (id: $SERVER_ID)"
 log "Current type:   $CURRENT_TYPE"
 echo ""
-echo -e "${CYAN}Select new server type:${NC}"
-echo "  1) cx22  — 2 vCPU,   4GB RAM,   40GB SSD — ~€4/mo"
-echo "  2) cx32  — 4 vCPU,   8GB RAM,   80GB SSD — ~€7/mo"
-echo "  3) cx42  — 8 vCPU,  16GB RAM,  160GB SSD — ~€14/mo"
-echo "  4) cx52  — 16 vCPU, 32GB RAM,  320GB SSD — ~€29/mo"
+echo -e "${CYAN}Shared vCPU — Intel/AMD (CX):${NC}"
+echo "   1) cx23   —  2 vCPU,   4GB RAM,   40GB SSD"
+echo "   2) cx33   —  4 vCPU,   8GB RAM,   80GB SSD"
+echo "   3) cx43   —  8 vCPU,  16GB RAM,  160GB SSD"
+echo "   4) cx53   — 16 vCPU,  32GB RAM,  320GB SSD"
+echo ""
+echo -e "${CYAN}Shared vCPU — ARM64 (CAX):${NC}"
+echo "   5) cax11  —  2 vCPU,   4GB RAM,   40GB SSD"
+echo "   6) cax21  —  4 vCPU,   8GB RAM,   80GB SSD"
+echo "   7) cax31  —  8 vCPU,  16GB RAM,  160GB SSD"
+echo "   8) cax41  — 16 vCPU,  32GB RAM,  320GB SSD"
+echo ""
+echo -e "${CYAN}Dedicated vCPU — AMD (CPX):${NC}"
+echo "   9) cpx12  —  1 vCPU,   2GB RAM,   40GB SSD"
+echo "  10) cpx22  —  2 vCPU,   4GB RAM,   80GB SSD"
+echo "  11) cpx32  —  4 vCPU,   8GB RAM,  160GB SSD"
+echo "  12) cpx42  —  8 vCPU,  16GB RAM,  320GB SSD"
+echo "  13) cpx52  — 12 vCPU,  24GB RAM,  480GB SSD"
+echo "  14) cpx62  — 16 vCPU,  32GB RAM,  640GB SSD"
+echo ""
+echo -e "${CYAN}Dedicated vCPU — AMD High-Memory (CCX):${NC}"
+echo "  15) ccx13  —  2 vCPU,   8GB RAM,   80GB SSD"
+echo "  16) ccx23  —  4 vCPU,  16GB RAM,  160GB SSD"
+echo "  17) ccx33  —  8 vCPU,  32GB RAM,  240GB SSD"
+echo "  18) ccx43  — 16 vCPU,  64GB RAM,  360GB SSD"
+echo "  19) ccx53  — 32 vCPU, 128GB RAM,  600GB SSD"
+echo "  20) ccx63  — 48 vCPU, 192GB RAM,  960GB SSD"
+echo ""
+echo -e "${CYAN}Custom:${NC}"
+echo "   c) Enter a custom server type name"
 echo ""
 
-read -rp "Choice: " choice
+read -rp "Choice [1-20 or c]: " choice
 
 case "$choice" in
-  1) NEW_TYPE="cx22" ;;
-  2) NEW_TYPE="cx32" ;;
-  3) NEW_TYPE="cx42" ;;
-  4) NEW_TYPE="cx52" ;;
+   1) NEW_TYPE="cx23"  ;;
+   2) NEW_TYPE="cx33"  ;;
+   3) NEW_TYPE="cx43"  ;;
+   4) NEW_TYPE="cx53"  ;;
+   5) NEW_TYPE="cax11" ;;
+   6) NEW_TYPE="cax21" ;;
+   7) NEW_TYPE="cax31" ;;
+   8) NEW_TYPE="cax41" ;;
+   9) NEW_TYPE="cpx12" ;;
+  10) NEW_TYPE="cpx22" ;;
+  11) NEW_TYPE="cpx32" ;;
+  12) NEW_TYPE="cpx42" ;;
+  13) NEW_TYPE="cpx52" ;;
+  14) NEW_TYPE="cpx62" ;;
+  15) NEW_TYPE="ccx13" ;;
+  16) NEW_TYPE="ccx23" ;;
+  17) NEW_TYPE="ccx33" ;;
+  18) NEW_TYPE="ccx43" ;;
+  19) NEW_TYPE="ccx53" ;;
+  20) NEW_TYPE="ccx63" ;;
+  c|C)
+    read -rp "Enter server type name (e.g. cx23, cax31): " NEW_TYPE
+    if [[ -z "$NEW_TYPE" ]]; then
+      err "No server type provided."
+      exit 1
+    fi
+    ;;
   *)
     err "Invalid choice: $choice"
     exit 1
