@@ -71,7 +71,7 @@ task connect
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
 | **S2-07** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below)                    | 1        |
 | **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
-| **S2-09** | Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`                                                | 2        |
+| **S2-09** | ✅ Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`, `python3-venv`                              | done     |
 
 ### S2-08: Interactive tmux session connector
 

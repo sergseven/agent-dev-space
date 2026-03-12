@@ -25,7 +25,22 @@ apt-get install -y -qq \
   jq \
   tmux \
   unzip \
-  htop
+  htop \
+  python3 \
+  python3-pip \
+  python3-venv
+
+# --- GitHub CLI ---
+log "Installing GitHub CLI..."
+if ! command -v gh &>/dev/null; then
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+  apt-get update -qq
+  apt-get install -y -qq gh
+fi
+log "GitHub CLI: $(gh --version | head -1)"
 
 # --- Node.js LTS via nodesource ---
 log "Installing Node.js LTS..."
@@ -187,5 +202,7 @@ log "  User: agentbox"
 log "  Node: $NODE_VERSION"
 log "  Claude Code: $CLAUDE_VERSION"
 log "  VS Code CLI: $(code version 2>/dev/null | head -1 || echo 'n/a')"
+log "  GitHub CLI: $(gh --version 2>/dev/null | head -1 || echo 'n/a')"
+log "  Python: $(python3 --version 2>/dev/null || echo 'n/a')"
 log "  tmux: $(tmux -V)"
 log ""
