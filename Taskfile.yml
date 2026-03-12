@@ -22,10 +22,10 @@ tasks:
 
   # --- Connection ---
 
-  ssh:
-    desc: SSH into the VM as agentbox user
+  connect:
+    desc: Connect to the VM (creates or attaches to persistent tmux session)
     cmds:
-      - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}}
+      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "tmux new-session -A -s main"
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
@@ -33,31 +33,9 @@ tasks:
       - test -f {{.STATE_FILE}}
 
   ssh:root:
-    desc: SSH into the VM as root (if still accessible)
+    desc: SSH into the VM as root (maintenance/debug)
     cmds:
       - ssh {{.SSH_OPTS}} root@{{.SERVER_IP}}
-    vars:
-      SERVER_IP:
-        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
-    preconditions:
-      - test -f {{.STATE_FILE}}
-
-  # --- Claude Code ---
-
-  claude:
-    desc: Start Claude Code in a new tmux session on the VM
-    cmds:
-      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "tmux new-session -A -s claude"
-    vars:
-      SERVER_IP:
-        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
-    preconditions:
-      - test -f {{.STATE_FILE}}
-
-  attach:
-    desc: Attach to existing Claude Code tmux session
-    cmds:
-      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "tmux attach -t claude"
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-

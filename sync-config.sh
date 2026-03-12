@@ -141,6 +141,7 @@ sync_claude() {
     settings.local.json    # local overrides
     keybindings.json       # custom keybindings
     policy-limits.json     # permission settings
+    statusline-command.sh  # status line script
   )
   local dirs=(
     hooks                  # user-defined hooks
@@ -168,6 +169,14 @@ sync_claude() {
       fi
     fi
   done
+
+  # S1-08: Rewrite absolute home paths in settings.json to match VM_HOME.
+  # Syncing from different machines (macOS /Users/alice, Linux /home/bob) would
+  # leave broken absolute paths in hooks/statusLine. We replace any /Users/*/ or
+  # /home/*/ prefix that points at a .claude/ subtree with the VM's home path.
+  log "Rewriting home paths in settings.json → $VM_HOME ..."
+  vm_ssh "$VM_USER@$SERVER_IP" \
+    "sed -i -E 's|/Users/[^/]+/\\.claude/|${VM_HOME}/.claude/|g; s|/home/[^/]+/\\.claude/|${VM_HOME}/.claude/|g' $VM_HOME/.claude/settings.json 2>/dev/null || true"
 
   SYNCED+=(".claude/")
 }

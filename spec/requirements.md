@@ -37,6 +37,7 @@ laptop, and come back later to find the session still running.
 | **S1-05** | Persistent session        | Claude Code runs inside tmux. SSH disconnect or laptop shutdown does NOT kill the session. User reconnects via SSH + `tmux attach` and picks up where they left off. |
 | **S1-06** | Local config sync         | A script (`sync-config.sh`) syncs cross-platform tool configs from local machine to VM: `~/.gitconfig`, `~/.ssh/` (keys + config), `~/.claude/` (settings, CLAUDE.md). Skips shell RC files — VM generates its own `.bashrc` during provisioning. Works from macOS, Linux, or Windows (via WSL/PowerShell `scp`). Runs post-provision automatically and on-demand via `./sync-config.sh <ip>`. |
 | **S1-07** | Unified connection via tmux | Single entry point: `task connect` SSH's into the VM and attaches to a persistent tmux session (creates one if none exists). Replaces separate `ssh`, `claude`, and `attach` targets. User gets a shell inside tmux and runs `claude` manually when needed. SSH agent forwarding (`-A`) is always enabled so git operations authenticate with local keys. |
+| **S1-08** | Path rewriting on config sync | `sync-config.sh` rewrites absolute home directory paths in synced config files (e.g. `settings.json`) to match the VM's home directory (`/home/agentbox`). This ensures hooks, status lines, and other path-based settings work on the VM regardless of which local machine (or OS/username) ran the sync. Rewriting is based on detecting path prefixes that differ from `VM_HOME`, not on the caller's `$HOME`. |
 
 ### Server type selection
 

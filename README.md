@@ -19,14 +19,14 @@ cp .env.example .env
 # Provision
 task provision       # creates VM, installs everything, syncs your configs
 
-# Connect and start coding
-task claude          # opens tmux + Claude Code
-                     # authenticate Claude on first run
+# Connect
+task connect         # opens persistent tmux session
+                     # run `claude` inside to start coding
 
 # Close laptop, go to sleep...
 
 # Next day
-task attach          # session is still there
+task connect         # same session is still there
 ```
 
 ## Commands
@@ -35,9 +35,7 @@ task attach          # session is still there
 |------------------|--------------------------------------------------|
 | `task provision` | Provision a new Hetzner VM                       |
 | `task destroy`   | Destroy the VM (with confirmation)               |
-| `task ssh`       | SSH into the VM                                  |
-| `task claude`    | Start/attach Claude Code in tmux                 |
-| `task attach`    | Attach to existing tmux session                  |
+| `task connect`   | Connect to VM (persistent tmux session)          |
 | `task sync`      | Sync local configs to VM (git, ssh, claude)      |
 | `task status`    | VM health: uptime, disk, memory, tmux sessions   |
 | `task ip`        | Print VM IP address                              |
