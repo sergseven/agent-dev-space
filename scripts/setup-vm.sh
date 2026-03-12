@@ -117,9 +117,37 @@ set -g status-right '%H:%M '
 
 # Don't auto-rename windows
 set -g allow-rename off
+
+# Update SSH_AUTH_SOCK in existing panes when reattaching
+# This ensures agent forwarding works after SSH reconnect
+set -g update-environment "SSH_AUTH_SOCK SSH_CONNECTION DISPLAY"
 TMUX
 
 chown agentbox:agentbox "$AGENTBOX_HOME/.tmux.conf"
+
+# --- SSH agent forwarding fix for tmux ---
+# When SSH reconnects, the SSH_AUTH_SOCK path changes but tmux keeps the old one.
+# This creates a stable symlink that gets updated on every login, so processes
+# inside tmux (including Claude Code) always find the active agent socket.
+# Must be BEFORE the non-interactive guard in .bashrc so it runs for all sessions.
+log "Setting up SSH agent forwarding for tmux..."
+
+AGENT_BLOCK='# --- SSH agent forwarding through tmux ---
+# Update stable symlink to current SSH agent socket on each login.
+# Processes inside tmux use the symlink, which always points to the live socket.
+if [ -n "$SSH_AUTH_SOCK" ] && [ "$SSH_AUTH_SOCK" != "$HOME/.ssh/agent.sock" ]; then
+    ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
+    export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+fi
+'
+
+# Prepend to .bashrc (before the non-interactive guard)
+if ! grep -q 'SSH agent forwarding through tmux' "$AGENTBOX_HOME/.bashrc" 2>/dev/null; then
+  printf '%s\n' "$AGENT_BLOCK" | cat - "$AGENTBOX_HOME/.bashrc" > /tmp/.bashrc.tmp
+  mv /tmp/.bashrc.tmp "$AGENTBOX_HOME/.bashrc"
+fi
+
+chown agentbox:agentbox "$AGENTBOX_HOME/.bashrc"
 
 # --- Done ---
 log ""
