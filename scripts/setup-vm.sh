@@ -44,6 +44,15 @@ npm install -g @anthropic-ai/claude-code
 CLAUDE_VERSION="$(claude --version 2>/dev/null || echo 'installed')"
 log "Claude Code: $CLAUDE_VERSION"
 
+# --- VS Code CLI (for Remote Tunnels) ---
+log "Installing VS Code CLI..."
+if ! command -v code &>/dev/null; then
+  curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64" -o /tmp/vscode-cli.tar.gz
+  tar -xzf /tmp/vscode-cli.tar.gz -C /usr/local/bin
+  rm -f /tmp/vscode-cli.tar.gz
+fi
+log "VS Code CLI: $(code version 2>/dev/null | head -1 || echo 'installed')"
+
 # --- Create agentbox user ---
 log "Creating agentbox user..."
 if ! id -u agentbox &>/dev/null; then
@@ -96,6 +105,28 @@ fi
 
 # Restart SSH (Ubuntu 24.04 uses ssh.service, not sshd.service)
 systemctl restart ssh
+
+# --- Firewall (ufw) ---
+log "Configuring firewall..."
+apt-get install -y -qq ufw
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw --force enable
+
+# --- fail2ban ---
+log "Configuring fail2ban..."
+apt-get install -y -qq fail2ban
+cat > /etc/fail2ban/jail.local <<'JAIL'
+[sshd]
+enabled = true
+port = 22
+maxretry = 5
+bantime = 600
+findtime = 600
+JAIL
+systemctl enable fail2ban
+systemctl restart fail2ban
 
 # --- tmux config for agentbox ---
 log "Setting up tmux config..."
@@ -155,5 +186,6 @@ log "=== Setup complete ==="
 log "  User: agentbox"
 log "  Node: $NODE_VERSION"
 log "  Claude Code: $CLAUDE_VERSION"
+log "  VS Code CLI: $(code version 2>/dev/null | head -1 || echo 'n/a')"
 log "  tmux: $(tmux -V)"
 log ""

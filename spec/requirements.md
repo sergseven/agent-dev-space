@@ -19,130 +19,41 @@ Claude Code ready, and the session keeps working when their laptop is off.
 
 ---
 
-## Stage 1 — Private Agent-First Dev Workspace (Prove It Works)
+## Stage 1 — Private Agent-First Dev Workspace ✅ COMPLETE
 
 **Goal**: A single developer (you) can provision a remote VM, SSH in, run Claude Code in a persistent session, close the
 laptop, and come back later to find the session still running.
 
-**No product, no users, no billing.** Just prove the core loop works.
+All Stage 1 requirements are implemented and working.
 
-### Requirements
-
-| ID        | Requirement               | Detail                                                                                                                                                               |
-|-----------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **S1-01** | Automated VM provisioning | A single script provisions a Hetzner Cloud VM (Ubuntu 24.04 LTS) with all dependencies installed. Run once, get a working machine.                                   |
-| **S1-02** | Hetzner as VM provider    | Interactive server type selection from available options (see Server Types below). Hetzner Cloud API. Region: Nuremberg or Falkenstein. |
-| **S1-03** | Remote terminal access    | SSH into the VM from local machine. Key-based auth only.                                                                                                             |
-| **S1-04** | Claude Code pre-installed | Claude Code installed and ready to use on the VM. User authenticates Claude Code interactively on first run. |
-| **S1-05** | Persistent session        | Claude Code runs inside tmux. SSH disconnect or laptop shutdown does NOT kill the session. User reconnects via SSH + `tmux attach` and picks up where they left off. |
-| **S1-06** | Local config sync         | A script (`sync-config.sh`) syncs cross-platform tool configs from local machine to VM: `~/.gitconfig`, `~/.ssh/` (keys + config), `~/.claude/` (settings, CLAUDE.md). Skips shell RC files — VM generates its own `.bashrc` during provisioning. Works from macOS, Linux, or Windows (via WSL/PowerShell `scp`). Runs post-provision automatically and on-demand via `./sync-config.sh <ip>`. |
-| **S1-07** | Unified connection via tmux | Single entry point: `task connect` SSH's into the VM and attaches to a persistent tmux session (creates one if none exists). Replaces separate `ssh`, `claude`, and `attach` targets. User gets a shell inside tmux and runs `claude` manually when needed. SSH agent forwarding (`-A`) is always enabled so git operations authenticate with local keys. |
-| **S1-08** | Path rewriting on config sync | `sync-config.sh` rewrites absolute home directory paths in synced config files (e.g. `settings.json`) to match the VM's home directory (`/home/agentbox`). This ensures hooks, status lines, and other path-based settings work on the VM regardless of which local machine (or OS/username) ran the sync. Rewriting is based on detecting path prefixes that differ from `VM_HOME`, not on the caller's `$HOME`. |
-
-### Server type selection
-
-The provisioning script interactively prompts for server type:
-
-```
-Select server type:
-  1) CX22  — 2 vCPU,  4GB RAM,  40GB SSD — ~€4/mo
-  2) CX32  — 4 vCPU,  8GB RAM,  80GB SSD — ~€8/mo
-  3) CX42  — 8 vCPU, 16GB RAM, 160GB SSD — ~€16/mo
-  4) CX52  — 16 vCPU, 32GB RAM, 320GB SSD — ~€31/mo
->
-```
-
-Default: CX22 (sufficient for single Claude Code session). CX32 recommended if running Docker workloads alongside agents.
-
-### What gets installed on the VM
-
-All packages installed at **latest stable version** at provision time:
-
-- Ubuntu 24.04 LTS (base image)
-- tmux (latest via apt)
-- Node.js LTS (latest LTS via nodesource or nvm)
-- Claude Code (latest via `npm install -g @anthropic-ai/claude-code`)
-- git, curl, wget, build-essential, jq (basic dev tools, latest via apt)
-- SSH hardened: key-only auth, no root login
-
-**Nothing else.** No Docker, no Caddy, no noVNC, no Telegram bot, no VS Code tunnel.
-
-### Configuration via `.env`
-
-The project ships with `.env.example`. User copies to `.env` and fills in values before running `provision.sh`.
-
-```bash
-# .env.example
-
-# Required: Hetzner Cloud API token
-HETZNER_API_TOKEN=
-
-# Optional: SSH public key path (default: ~/.ssh/id_ed25519.pub)
-SSH_PUBLIC_KEY_PATH=~/.ssh/id_ed25519.pub
-
-# Optional: Hetzner server type (default: cx22)
-HETZNER_SERVER_TYPE=cx22
-
-# Optional: Hetzner datacenter region (default: nbg1 — Nuremberg)
-HETZNER_REGION=nbg1
-```
-
-The provisioning script:
-- Reads `.env` (fails if missing required values)
-- If `HETZNER_SERVER_TYPE` is not set, prompts interactively
-- Never commits `.env` (listed in `.gitignore`)
-
-### Provisioning script behavior
-
-```
-./provision.sh
-  1. Reads .env (validates required values present)
-  2. Prompts for server type if not set in .env
-  3. Creates a Hetzner server via API
-  4. Waits for server to be ready
-  5. Copies SSH public key for access
-  6. Runs setup script on the VM (installs Node.js, tmux, Claude Code, hardens SSH)
-  7. Syncs local configs to VM
-  8. Prints: SSH connection string, server IP
-  Done.
-```
-
-**Idempotent**: Running the setup script again on the same VM doesn't break anything.
+| ID        | Requirement                   | Status |
+|-----------|-------------------------------|--------|
+| **S1-01** | Automated VM provisioning     | ✅ `provision.sh` — Hetzner Cloud VM (Ubuntu 24.04 LTS) |
+| **S1-02** | Hetzner as VM provider        | ✅ Interactive server type selection (CX22–CX52), `.env` config |
+| **S1-03** | Remote terminal access        | ✅ SSH key-based auth, no root login |
+| **S1-04** | Claude Code pre-installed     | ✅ Via `npm install -g @anthropic-ai/claude-code` |
+| **S1-05** | Persistent session            | ✅ tmux — survives SSH disconnect and laptop shutdown |
+| **S1-06** | Local config sync             | ✅ `sync-config.sh` — syncs `.gitconfig`, `.ssh/`, `.claude/` |
+| **S1-07** | Unified connection via tmux   | ✅ `task connect` — SSH + tmux attach, agent forwarding |
+| **S1-08** | Path rewriting on config sync | ✅ Rewrites absolute home paths to `/home/agentbox` |
 
 ### How the user works with it
 
 ```
 # Provision (one time)
-cp .env.example .env
-# Edit .env — set HETZNER_API_TOKEN and ANTHROPIC_API_KEY
+cp .env.example .env       # set HETZNER_API_TOKEN
 ./provision.sh
 
-# Connect
-ssh agentbox@<ip>
-
-# Start Claude Code in tmux (first time)
-tmux new-session -s claude
-claude
+# Connect (opens interactive TUI session selector)
+task connect
 
 # ... work with Claude Code ...
 # Close laptop. Go to sleep.
 
 # Next day — reconnect
-ssh agentbox@<ip>
-tmux attach -t claude
+task connect
 # Session is still there, Claude Code still running
 ```
-
-### Success criteria
-
-- [ ] Script provisions VM in < 5 minutes
-- [ ] SSH works immediately after provisioning
-- [ ] Claude Code starts and responds to prompts
-- [ ] Close SSH → reopen SSH → `tmux attach` → session intact with full history
-- [ ] Close laptop for 1 hour → reconnect → session intact
-- [ ] `sync-config.sh <ip>` syncs `.gitconfig`, `.ssh/`, `.claude/` to VM
-- [ ] `git` on VM uses correct identity (name, email, signing key) after sync
-- [ ] Claude Code on VM picks up synced `.claude/` settings
 
 ---
 
@@ -152,14 +63,15 @@ tmux attach -t claude
 
 | ID        | Requirement                                                                                                 | Priority |
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
-| **S2-01** | VS Code Remote Tunnel — connect local VS Code to remote VM files, run terminal and extensions on VM         | 1        |
-| **S2-02** | Multiple named tmux sessions: `claude`, `shell` (general purpose)                                           | 2        |
+| **S2-01** | IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | 1        |
+| **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
 | **S2-03** | Snapshot-based provisioning — pre-bake a Hetzner snapshot with all software for faster (~2 min) VM creation | 4        |
-| **S2-04** | Basic firewall — only ports 22 (SSH) open, fail2ban installed                                               | 1        |
+| **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
 | **S2-05** | Docker + Docker Compose pre-installed — for running user workloads                                          | 3        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
 | **S2-07** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below)                    | 1        |
-| **S2-08** | Interactive tmux session connector — `task connect` launches a TUI to list, select, or create tmux sessions | 1        |
+| **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
+| **S2-09** | Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`                                                | 2        |
 
 ### S2-08: Interactive tmux session connector
 
@@ -195,6 +107,63 @@ tmux attach -t claude
 - Input validation for session names (alphanumeric, dash, underscore, dot)
 - Connectivity check before rendering
 - Clean terminal restore on exit
+
+### S2-01: IDE Remote Access
+
+**Goal**: Developers can use their full local IDE (VS Code or JetBrains) connected to the remote VM — edit files, run terminals, use extensions/plugins, all on remote compute.
+
+**Two approaches, both supported**:
+
+#### VS Code Remote Tunnel
+
+Uses the standalone `code` CLI on the VM to create a dev tunnel. No open ports beyond SSH.
+
+**Setup** (automated in `setup-vm.sh`):
+- Installs VS Code standalone CLI to `/usr/local/bin/code`
+- Downloaded from official Microsoft CDN (Alpine static binary, works on any Linux)
+
+**Usage**:
+```bash
+task tunnel:code        # starts tunnel, prints auth URL
+```
+
+First run requires GitHub/Microsoft authentication via browser URL. After that, the tunnel appears in VS Code desktop under "Remote Explorer → Tunnels".
+
+**What works over tunnel**:
+- Full file editing with IntelliSense
+- Integrated terminal (runs on VM)
+- Extensions execute on VM (Copilot, linters, formatters)
+- Port forwarding (preview web apps locally)
+- Git operations use VM's SSH agent
+
+#### JetBrains Gateway (SSH)
+
+JetBrains Gateway connects over SSH and auto-installs the IDE backend on the VM. Zero additional setup required on the VM side — SSH access (already configured in S1-03) is sufficient.
+
+**Usage**:
+```bash
+task tunnel:jb          # prints connection instructions
+```
+
+**Steps in Gateway**:
+1. Open JetBrains Gateway → SSH → New Connection
+2. Enter VM IP (`task ip`), user `agentbox`, key-based auth
+3. Select IDE (IntelliJ IDEA, PyCharm, GoLand, WebStorm, etc.)
+4. Choose project directory on VM
+5. Gateway downloads and starts the IDE backend automatically
+
+**What works over Gateway**:
+- Full IDE experience (refactoring, debugging, run configs)
+- Terminal runs on VM
+- Plugins execute on VM
+- SSH agent forwarding for Git operations
+
+#### Taskfile commands
+
+| Task | Description |
+|------|-------------|
+| `task tunnel:code` | Start VS Code dev tunnel on VM |
+| `task tunnel:jb` | Print JetBrains Gateway connection instructions |
 
 ### S2-07: Provider Abstraction
 

@@ -46,6 +46,43 @@ tasks:
     preconditions:
       - test -f {{.STATE_FILE}}
 
+  # --- IDE tunnels ---
+
+  tunnel:code:
+    desc: Start VS Code dev tunnel on VM (connect from local VS Code)
+    cmds:
+      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "code tunnel --accept-server-license-terms"
+    vars:
+      SERVER_IP:
+        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
+    preconditions:
+      - test -f {{.STATE_FILE}}
+
+  tunnel:jb:
+    desc: Print JetBrains Gateway SSH connection instructions
+    cmds:
+      - |
+        echo ""
+        echo "=== JetBrains Gateway (SSH) ==="
+        echo ""
+        echo "1. Open JetBrains Gateway"
+        echo "2. Click 'SSH' → 'New Connection'"
+        echo "3. Enter:"
+        echo "     Host: {{.SERVER_IP}}"
+        echo "     User: agentbox"
+        echo "     Auth: Key pair"
+        echo "4. Select your IDE (IntelliJ, PyCharm, GoLand, etc.)"
+        echo "5. Choose project directory on VM"
+        echo ""
+        echo "Gateway auto-installs the IDE backend on the VM."
+        echo "SSH agent forwarding is pre-configured."
+        echo ""
+    vars:
+      SERVER_IP:
+        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
+    preconditions:
+      - test -f {{.STATE_FILE}}
+
   # --- Config sync ---
 
   sync:

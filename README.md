@@ -100,6 +100,7 @@ All `task` commands forward your local SSH agent (`-A`), so `git clone` on the V
 - tmux (50K line history, mouse support)
 - git, curl, wget, build-essential, jq, htop
 - SSH hardened: key-only auth, no root login
+- ufw firewall (port 22 only) + fail2ban (SSH brute-force protection)
 
 ## Architecture (Stage 1)
 
