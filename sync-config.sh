@@ -130,29 +130,44 @@ sync_claude() {
     return
   fi
 
-  log "Syncing .claude/ (excluding transient data)..."
+  log "Syncing .claude/ (config files only, ~20KB)..."
+
+  # Whitelist: only sync files that represent user configuration.
+  # Everything else (~1.9GB) is transient session data, debug logs,
+  # conversation history, or machine-specific state.
+  local files=(
+    CLAUDE.md              # global instructions
+    settings.json          # user preferences
+    settings.local.json    # local overrides
+    keybindings.json       # custom keybindings
+    policy-limits.json     # permission settings
+  )
+  local dirs=(
+    hooks                  # user-defined hooks
+  )
 
   # Ensure target dir exists
   vm_ssh "$VM_USER@$SERVER_IP" "mkdir -p $VM_HOME/.claude"
 
-  if command -v rsync &>/dev/null; then
-    vm_rsync \
-      --copy-links \
-      --exclude='statsig/' \
-      --exclude='todos/' \
-      --exclude='.credentials' \
-      --exclude='*.log' \
-      "$src/" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/"
-  else
-    # Fallback: copy key files individually
-    for f in "$src"/CLAUDE.md "$src"/settings.json "$src"/settings.local.json; do
-      [[ -f "$f" ]] && vm_scp -q "$f" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/"
-    done
-    # Copy projects dir if it exists
-    if [[ -d "$src/projects" ]]; then
-      vm_scp -q -r "$src/projects" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/"
+  # Sync individual config files
+  for f in "${files[@]}"; do
+    local filepath="$src/$f"
+    # Dereference symlinks
+    [[ -L "$filepath" ]] && filepath="$(readlink -f "$filepath")"
+    [[ -f "$filepath" ]] && vm_scp -q "$filepath" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/$f"
+  done
+
+  # Sync config directories
+  for d in "${dirs[@]}"; do
+    if [[ -d "$src/$d" ]]; then
+      vm_ssh "$VM_USER@$SERVER_IP" "mkdir -p $VM_HOME/.claude/$d"
+      if command -v rsync &>/dev/null; then
+        vm_rsync --copy-links "$src/$d/" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/$d/"
+      else
+        vm_scp -q -r "$src/$d" "$VM_USER@$SERVER_IP:$VM_HOME/.claude/"
+      fi
     fi
-  fi
+  done
 
   SYNCED+=(".claude/")
 }
