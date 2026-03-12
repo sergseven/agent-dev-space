@@ -213,7 +213,7 @@ create_new_session() {
   echo ""
 
   # Use tmux new-session -A to create-or-attach
-  exec vm_ssh -t "agentbox@$ip" "tmux new-session -A -s '$session_name'"
+  exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" "tmux new-session -A -s '$session_name'"
 }
 
 # --- Attach to existing session ---
@@ -225,7 +225,7 @@ attach_session() {
   echo -e "  ${GREEN}▸${NC} Attaching to ${BOLD}$name${NC}..."
   echo ""
 
-  exec vm_ssh -t "agentbox@$ip" "tmux attach -t '$name'"
+  exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" "tmux attach -t '$name'"
 }
 
 # --- Main ---
