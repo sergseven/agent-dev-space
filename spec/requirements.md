@@ -33,7 +33,7 @@ laptop, and come back later to find the session still running.
 | **S1-01** | Automated VM provisioning | A single script provisions a Hetzner Cloud VM (Ubuntu 24.04 LTS) with all dependencies installed. Run once, get a working machine.                                   |
 | **S1-02** | Hetzner as VM provider    | Interactive server type selection from available options (see Server Types below). Hetzner Cloud API. Region: Nuremberg or Falkenstein. |
 | **S1-03** | Remote terminal access    | SSH into the VM from local machine. Key-based auth only.                                                                                                             |
-| **S1-04** | Claude Code pre-installed | Claude Code installed and ready to use on the VM. User provides their own Anthropic API key via `.env` file before provisioning. Key is deployed to the VM during setup. |
+| **S1-04** | Claude Code pre-installed | Claude Code installed and ready to use on the VM. User authenticates Claude Code interactively on first run. |
 | **S1-05** | Persistent session        | Claude Code runs inside tmux. SSH disconnect or laptop shutdown does NOT kill the session. User reconnects via SSH + `tmux attach` and picks up where they left off. |
 | **S1-06** | Local config sync         | A script (`sync-config.sh`) syncs cross-platform tool configs from local machine to VM: `~/.gitconfig`, `~/.ssh/` (keys + config), `~/.claude/` (settings, CLAUDE.md). Skips shell RC files — VM generates its own `.bashrc` during provisioning. Works from macOS, Linux, or Windows (via WSL/PowerShell `scp`). Runs post-provision automatically and on-demand via `./sync-config.sh <ip>`. |
 | **S1-07** | Unified connection via tmux | Single entry point: `task connect` SSH's into the VM and attaches to a persistent tmux session (creates one if none exists). Replaces separate `ssh`, `claude`, and `attach` targets. User gets a shell inside tmux and runs `claude` manually when needed. SSH agent forwarding (`-A`) is always enabled so git operations authenticate with local keys. |
@@ -77,9 +77,6 @@ The project ships with `.env.example`. User copies to `.env` and fills in values
 # Required: Hetzner Cloud API token
 HETZNER_API_TOKEN=
 
-# Required: Anthropic API key (deployed to VM as ANTHROPIC_API_KEY)
-ANTHROPIC_API_KEY=
-
 # Optional: SSH public key path (default: ~/.ssh/id_ed25519.pub)
 SSH_PUBLIC_KEY_PATH=~/.ssh/id_ed25519.pub
 
@@ -93,7 +90,6 @@ HETZNER_REGION=nbg1
 The provisioning script:
 - Reads `.env` (fails if missing required values)
 - If `HETZNER_SERVER_TYPE` is not set, prompts interactively
-- Deploys `ANTHROPIC_API_KEY` to the VM's `~/.bashrc` as an export
 - Never commits `.env` (listed in `.gitignore`)
 
 ### Provisioning script behavior
@@ -106,7 +102,7 @@ The provisioning script:
   4. Waits for server to be ready
   5. Copies SSH public key for access
   6. Runs setup script on the VM (installs Node.js, tmux, Claude Code, hardens SSH)
-  7. Deploys ANTHROPIC_API_KEY to VM environment
+  7. Syncs local configs to VM
   8. Prints: SSH connection string, server IP
   Done.
 ```
@@ -163,6 +159,42 @@ tmux attach -t claude
 | **S2-05** | Docker + Docker Compose pre-installed — for running user workloads                                          | 3        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
 | **S2-07** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below)                    | 1        |
+| **S2-08** | Interactive tmux session connector — `task connect` launches a TUI to list, select, or create tmux sessions | 1        |
+
+### S2-08: Interactive tmux session connector
+
+**Goal**: `task connect` opens a professional TUI that lists all tmux sessions on the VM with status (attached/detached, window count, creation time), lets the user navigate with arrow keys or vim bindings, and either attach to an existing session or create a new named one.
+
+**Behavior**:
+
+```
+  ╔══════════════════════════════════════════╗
+  ║       Agent Dev Space · Connect         ║
+  ╚══════════════════════════════════════════╝
+
+  Server: 49.13.x.x
+
+  Sessions:
+
+   ▸ claude  ● attached
+      2 window(s) · created Mar 12 14:30
+
+     shell  ○ detached
+      1 window(s) · created Mar 12 15:00
+
+   + New session
+
+  ↑/↓ navigate · enter select · q quit
+```
+
+**Features**:
+- Arrow keys and j/k vim navigation
+- Highlighted selection row
+- Attached/detached status badges
+- Session creation with custom name (defaults to `claude`)
+- Input validation for session names (alphanumeric, dash, underscore, dot)
+- Connectivity check before rendering
+- Clean terminal restore on exit
 
 ### S2-07: Provider Abstraction
 
@@ -344,4 +376,4 @@ Telegram ─────────────▶ ├── Telegram bot servi
 | Provisioning        | Shell script + Hetzner API    | Simplest thing that works. No Terraform overhead for Stage 1. |
 | Agent               | Claude Code only (Stage 1)    | Focus. Add others when the base works.                        |
 | Auth to VM          | SSH key                       | Standard, secure, zero custom infra.                          |
-| API key management  | Via `.env` file, deployed to VM | Keys in `.env` locally, exported to VM's `~/.bashrc`. Never committed to git. |
+| API key management  | Interactive auth on first run  | User authenticates Claude Code on the VM. No API keys in provisioning config.  |

@@ -23,12 +23,9 @@ tasks:
   # --- Connection ---
 
   connect:
-    desc: Connect to the VM (creates or attaches to persistent tmux session)
+    desc: Interactive tmux session selector — pick a session or create a new one
     cmds:
-      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "tmux new-session -A -s main"
-    vars:
-      SERVER_IP:
-        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
+      - ./scripts/connect.sh
     preconditions:
       - test -f {{.STATE_FILE}}
 

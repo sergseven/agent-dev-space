@@ -5,7 +5,9 @@ start coding in tmux, close your laptop — come back later and your session is 
 
 ## Status
 
-**Stage 1 — Working.** Single-user, private workspace. Provisioning, SSH access, Claude Code, persistent tmux sessions, local config sync.
+**Stage 1 — Complete.** Single-user, private workspace. Provisioning, SSH access, Claude Code, persistent tmux sessions, local config sync.
+
+**Stage 2 — In progress.** Interactive tmux session connector, VS Code tunnel, firewall, Docker, multi-provider support.
 
 ## Quick Start
 
