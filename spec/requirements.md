@@ -35,6 +35,7 @@ laptop, and come back later to find the session still running.
 | **S1-03** | Remote terminal access    | SSH into the VM from local machine. Key-based auth only.                                                                                                             |
 | **S1-04** | Claude Code pre-installed | Claude Code installed and ready to use on the VM. User provides their own Anthropic API key via `.env` file before provisioning. Key is deployed to the VM during setup. |
 | **S1-05** | Persistent session        | Claude Code runs inside tmux. SSH disconnect or laptop shutdown does NOT kill the session. User reconnects via SSH + `tmux attach` and picks up where they left off. |
+| **S1-06** | Local config sync         | A script (`sync-config.sh`) syncs cross-platform tool configs from local machine to VM: `~/.gitconfig`, `~/.ssh/` (keys + config), `~/.claude/` (settings, CLAUDE.md). Skips shell RC files — VM generates its own `.bashrc` during provisioning. Works from macOS, Linux, or Windows (via WSL/PowerShell `scp`). Runs post-provision automatically and on-demand via `./sync-config.sh <ip>`. |
 
 ### Server type selection
 
@@ -141,6 +142,9 @@ tmux attach -t claude
 - [ ] Claude Code starts and responds to prompts
 - [ ] Close SSH → reopen SSH → `tmux attach` → session intact with full history
 - [ ] Close laptop for 1 hour → reconnect → session intact
+- [ ] `sync-config.sh <ip>` syncs `.gitconfig`, `.ssh/`, `.claude/` to VM
+- [ ] `git` on VM uses correct identity (name, email, signing key) after sync
+- [ ] Claude Code on VM picks up synced `.claude/` settings
 
 ---
 

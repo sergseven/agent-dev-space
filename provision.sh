@@ -308,6 +308,16 @@ CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 }
 
+# --- Sync local configs to VM ---
+sync_config() {
+  if [[ -x "$SCRIPT_DIR/sync-config.sh" ]]; then
+    log "Syncing local configs to VM..."
+    "$SCRIPT_DIR/sync-config.sh" "$SERVER_IP"
+  else
+    warn "sync-config.sh not found or not executable, skipping config sync"
+  fi
+}
+
 # --- Main ---
 main() {
   echo ""
@@ -320,6 +330,7 @@ main() {
   wait_for_server
   wait_for_ssh
   run_setup
+  sync_config
 
   echo ""
   echo -e "${GREEN}=== Provisioning complete ===${NC}"

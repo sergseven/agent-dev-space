@@ -5,7 +5,7 @@ dotenv: [".env"]
 vars:
   STATE_FILE: .agentbox-state
   KNOWN_HOSTS: .agentbox-known-hosts
-  SSH_OPTS: -o UserKnownHostsFile={{.KNOWN_HOSTS}} -o StrictHostKeyChecking=no
+  SSH_OPTS: -A -o UserKnownHostsFile={{.KNOWN_HOSTS}} -o StrictHostKeyChecking=no
 
 tasks:
   # --- Core lifecycle ---
@@ -58,6 +58,18 @@ tasks:
     desc: Attach to existing Claude Code tmux session
     cmds:
       - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "tmux attach -t claude"
+    vars:
+      SERVER_IP:
+        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
+    preconditions:
+      - test -f {{.STATE_FILE}}
+
+  # --- Config sync ---
+
+  sync:
+    desc: Sync local configs (.gitconfig, .ssh, .claude) to VM
+    cmds:
+      - ./sync-config.sh {{.SERVER_IP}}
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
