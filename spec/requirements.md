@@ -69,7 +69,6 @@ task connect
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
 | **S2-05** | Docker + Docker Compose pre-installed — for running user workloads                                          | 3        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
-| **S2-07** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below)                    | 1        |
 | **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
 | **S2-09** | ✅ Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`, `python3-venv`                              | done     |
 
@@ -165,7 +164,68 @@ task tunnel:jb          # prints connection instructions
 | `task tunnel:code` | Start VS Code dev tunnel on VM |
 | `task tunnel:jb` | Print JetBrains Gateway connection instructions |
 
-### S2-07: Provider Abstraction
+---
+
+## Stage 3 — Messenger Control
+
+**Unlocked by**: Stage 2 works, daily-driving the VM, want mobile/async control.
+
+| ID        | Requirement                                                                         | Priority |
+|-----------|-------------------------------------------------------------------------------------|----------|
+| **S3-01** | Telegram bot that relays messages to Claude Code on the VM via `claude -p --resume` | 1        |
+| **S3-02** | Session continuity — conversation context persists across Telegram messages         | 1        |
+| **S3-03** | Bot commands: `/status` (VM health), `/new` (new Claude session), `/screenshot`     | 3        |
+| **S3-04** | Long-running tasks: bot acknowledges immediately, posts result when done            | 2        |
+| **S3-05** | Rich responses: code blocks, diffs, images                                          | 4        |
+
+---
+
+## Stage 4 — Multi-Agent & Browser
+
+**Unlocked by**: Stage 3 validated, want to expand capabilities.
+
+| ID        | Requirement                                                             | Priority |
+|-----------|-------------------------------------------------------------------------|----------|
+| **S4-01** | Additional agents: Codex CLI, OpenCode, Aider — user picks which to use | 3        |
+| **S4-02** | Playwright MCP + Chromium in Docker — Claude can control a browser      | 1        |
+| **S4-03** | noVNC — user can observe/interact with the remote browser via web       | 2        |
+| **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agent-dev-space.dev`            | 5        |
+| **S4-05** | MCP servers pre-installed: memory server, GitHub, filesystem            | 3        |
+
+---
+
+## Stage 5 — Product (If Validated)
+
+**Unlocked by**: Using it daily, others want it too.
+
+| ID        | Requirement                                               | Priority |
+|-----------|-----------------------------------------------------------|----------|
+| **S5-01** | Landing page + signup flow                                | 1        |
+| **S5-02** | Auth: GitHub/Google OAuth                                 | 1        |
+| **S5-03** | Stripe payment → auto-provisions VM                       | 1        |
+| **S5-04** | User dashboard: VM status, restart, storage usage         | 3        |
+| **S5-05** | API key onboarding wizard (keys stored only on user's VM) | 3        |
+| **S5-06** | Pricing: $19/mo Solo tier                                 | 1        |
+
+---
+
+## Stage 6 — Scale & Enterprise
+
+**Unlocked by**: 20+ paying users, inbound from teams.
+
+| ID        | Requirement                                                                 | Priority |
+|-----------|-----------------------------------------------------------------------------|----------|
+| **S6-01** | Slack integration alongside Telegram                                        | 4        |
+| **S6-02** | Background agent mode — assign GitHub/Jira ticket, agent works autonomously | 5        |
+| **S6-03** | Scheduled agents — cron-style tasks                                         | 3        |
+| **S6-04** | Team workspaces: one admin, multiple VMs, shared billing                    | 5        |
+| **S6-05** | Audit log: what the agent did, what commands ran                            | 3        |
+| **S6-06** | SSO (SAML/OIDC)                                                             | 5        |
+| **S6-07** | EU data residency option (Hetzner region selection)                         | 2        |
+| **S6-08** | Pro tier: $39/mo                                                            | 1        |
+| **S6-09** | Multi-provider support — pluggable provisioning backend (see Provider Abstraction below) | 3        |
+
+### S6-09: Provider Abstraction
 
 **Goal**: Provision the same workspace on different infrastructure. User sets `PROVIDER=xxx` and a token in `.env`, runs
 `task provision`, gets the same result regardless of backend.
@@ -238,66 +298,6 @@ PROVIDER=hetzner    # options: hetzner, aws, gcp, digitalocean, kubernetes
 ```
 
 Provider-specific variables are only required when that provider is selected.
-
----
-
-## Stage 3 — Messenger Control
-
-**Unlocked by**: Stage 2 works, daily-driving the VM, want mobile/async control.
-
-| ID        | Requirement                                                                         | Priority |
-|-----------|-------------------------------------------------------------------------------------|----------|
-| **S3-01** | Telegram bot that relays messages to Claude Code on the VM via `claude -p --resume` | 1        |
-| **S3-02** | Session continuity — conversation context persists across Telegram messages         | 1        |
-| **S3-03** | Bot commands: `/status` (VM health), `/new` (new Claude session), `/screenshot`     | 3        |
-| **S3-04** | Long-running tasks: bot acknowledges immediately, posts result when done            | 2        |
-| **S3-05** | Rich responses: code blocks, diffs, images                                          | 4        |
-
----
-
-## Stage 4 — Multi-Agent & Browser
-
-**Unlocked by**: Stage 3 validated, want to expand capabilities.
-
-| ID        | Requirement                                                             | Priority |
-|-----------|-------------------------------------------------------------------------|----------|
-| **S4-01** | Additional agents: Codex CLI, OpenCode, Aider — user picks which to use | 3        |
-| **S4-02** | Playwright MCP + Chromium in Docker — Claude can control a browser      | 1        |
-| **S4-03** | noVNC — user can observe/interact with the remote browser via web       | 2        |
-| **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agent-dev-space.dev`            | 5        |
-| **S4-05** | MCP servers pre-installed: memory server, GitHub, filesystem            | 3        |
-
----
-
-## Stage 5 — Product (If Validated)
-
-**Unlocked by**: Using it daily, others want it too.
-
-| ID        | Requirement                                               | Priority |
-|-----------|-----------------------------------------------------------|----------|
-| **S5-01** | Landing page + signup flow                                | 1        |
-| **S5-02** | Auth: GitHub/Google OAuth                                 | 1        |
-| **S5-03** | Stripe payment → auto-provisions VM                       | 1        |
-| **S5-04** | User dashboard: VM status, restart, storage usage         | 3        |
-| **S5-05** | API key onboarding wizard (keys stored only on user's VM) | 3        |
-| **S5-06** | Pricing: $19/mo Solo tier                                 | 1        |
-
----
-
-## Stage 6 — Scale & Enterprise
-
-**Unlocked by**: 20+ paying users, inbound from teams.
-
-| ID        | Requirement                                                                 | Priority |
-|-----------|-----------------------------------------------------------------------------|----------|
-| **S6-01** | Slack integration alongside Telegram                                        | 4        |
-| **S6-02** | Background agent mode — assign GitHub/Jira ticket, agent works autonomously | 5        |
-| **S6-03** | Scheduled agents — cron-style tasks                                         | 3        |
-| **S6-04** | Team workspaces: one admin, multiple VMs, shared billing                    | 5        |
-| **S6-05** | Audit log: what the agent did, what commands ran                            | 3        |
-| **S6-06** | SSO (SAML/OIDC)                                                             | 5        |
-| **S6-07** | EU data residency option (Hetzner region selection)                         | 2        |
-| **S6-08** | Pro tier: $39/mo                                                            | 1        |
 
 ---
 
