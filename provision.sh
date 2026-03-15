@@ -291,6 +291,14 @@ run_setup() {
   log "Copying setup script to VM..."
   vm_scp "$SETUP_SCRIPT" "root@$SERVER_IP:/tmp/setup-vm.sh"
 
+  # Copy workspace Docker image build context (used by setup-vm.sh to build the image)
+  local docker_ctx="$SCRIPT_DIR/docker/workspace"
+  if [[ -d "$docker_ctx" ]]; then
+    log "Copying workspace image build context to VM..."
+    tar -C "$SCRIPT_DIR/docker" -cf - workspace | \
+      vm_ssh "root@$SERVER_IP" "tar -C /tmp -xf - && mv /tmp/workspace /tmp/docker-workspace"
+  fi
+
   log "Running setup script on VM (this may take a few minutes)..."
   vm_ssh "root@$SERVER_IP" \
     "bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"

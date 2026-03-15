@@ -1,7 +1,6 @@
-# --- SSH agent forwarding through tmux ---
-# Update stable symlink to current SSH agent socket on each login.
-# Processes inside tmux use the symlink, which always points to the live socket.
-if [ -n "$SSH_AUTH_SOCK" ] && [ "$SSH_AUTH_SOCK" != "$HOME/.ssh/agent.sock" ]; then
-    ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
-    export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+# --- SSH agent forwarding ---
+# In containers: agent socket is mounted at ~/.ssh-agent/agent.sock via socat on host
+# On host: socat block in host .bashrc handles the forwarding
+if [ -z "$SSH_AUTH_SOCK" ] && [ -S "$HOME/.ssh-agent/agent.sock" ]; then
+    export SSH_AUTH_SOCK="$HOME/.ssh-agent/agent.sock"
 fi

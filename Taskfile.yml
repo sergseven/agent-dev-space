@@ -30,7 +30,7 @@ tasks:
   # --- Connection ---
 
   connect:
-    desc: Interactive tmux session selector — pick a session or create a new one
+    desc: Interactive workspace + tmux session selector
     cmds:
       - ./scripts/connect.sh
     preconditions:
@@ -122,6 +122,18 @@ tasks:
     preconditions:
       - test -f {{.STATE_FILE}}
 
+  # --- Workspaces ---
+
+  workspace:list:
+    desc: List all workspaces on the VM
+    cmds:
+      - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "docker ps -a --filter 'name=^ws-' --format 'table {{.Names}}\t{{.State}}\t{{.Size}}'"
+    vars:
+      SERVER_IP:
+        sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
+    preconditions:
+      - test -f {{.STATE_FILE}}
+
   # --- Workspace image ---
 
   image:build:
@@ -159,6 +171,7 @@ tasks:
     desc: Re-run the setup script on an existing VM (idempotent)
     cmds:
       - scp {{.SSH_OPTS}} scripts/setup-vm.sh agentbox@{{.SERVER_IP}}:/tmp/setup-vm.sh
+      - tar -C docker -cf - workspace | ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "tar -C /tmp -xf - && mv /tmp/workspace /tmp/docker-workspace"
       - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "sudo bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"
     vars:
       SERVER_IP:

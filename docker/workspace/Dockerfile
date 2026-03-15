@@ -15,9 +15,10 @@ ENV CLEANUP="rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/* \
 # Layer 1: System packages + GitHub CLI (both apt-based, single update)
 RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
-      git curl wget build-essential jq tmux unzip htop \
+      git curl wget build-essential jq tmux unzip htop openssh-client locales \
       python3 python3-pip python3-venv \
       ca-certificates gnupg sudo && \
+    sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen && locale-gen && \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && \
     chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
@@ -37,16 +38,20 @@ RUN curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-a
     tar -xzf /tmp/vscode-cli.tar.gz -C /usr/local/bin && \
     rm -f /tmp/vscode-cli.tar.gz
 
-# Layer 4: Claude Code (changes most frequently)
-RUN npm install -g @anthropic-ai/claude-code && \
-    npm cache clean --force
-
-# Layer 5: agentbox user (UID 1000 — matches host user for bind mount permissions)
+# Layer 4: agentbox user (UID 1000 — matches host user for bind mount permissions)
 # Ubuntu 24.04 has a default 'ubuntu' user at UID 1000 — remove it first
 RUN userdel -r ubuntu 2>/dev/null || true && \
     useradd -m -s /bin/bash -u 1000 agentbox && \
     echo "agentbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agentbox && \
     chmod 0440 /etc/sudoers.d/agentbox
+
+# Layer 5: Claude Code — native installer (no Node.js dependency, auto-updates disabled)
+USER agentbox
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV TERM=xterm-256color
+USER root
 
 # Layer 6: tmux config + bashrc SSH agent forwarding + mount point dirs
 COPY files/tmux.conf /home/agentbox/.tmux.conf
@@ -54,7 +59,7 @@ COPY files/bashrc-agent.sh /tmp/bashrc-agent.sh
 RUN cat /tmp/bashrc-agent.sh /home/agentbox/.bashrc > /tmp/.bashrc.new && \
     mv /tmp/.bashrc.new /home/agentbox/.bashrc && \
     rm /tmp/bashrc-agent.sh && \
-    mkdir -p /home/agentbox/.ssh /home/agentbox/.claude /home/agentbox/projects && \
+    mkdir -p /home/agentbox/.ssh /home/agentbox/.ssh-agent /home/agentbox/.claude /home/agentbox/projects && \
     chown -R agentbox:agentbox /home/agentbox
 
 USER agentbox

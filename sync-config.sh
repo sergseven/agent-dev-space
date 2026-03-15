@@ -181,6 +181,32 @@ sync_claude() {
   SYNCED+=(".claude/")
 }
 
+sync_workspace_config() {
+  log "Syncing workspace shared config (for container mounts)..."
+  vm_ssh "$VM_USER@$SERVER_IP" "
+    mkdir -p $VM_HOME/.config/workspace/.ssh
+    # Copy SSH keys (not authorized_keys) for container mounts
+    cp $VM_HOME/.ssh/id_* $VM_HOME/.ssh/config $VM_HOME/.ssh/known_hosts \
+       $VM_HOME/.config/workspace/.ssh/ 2>/dev/null || true
+    chmod 700 $VM_HOME/.config/workspace/.ssh
+    chmod 600 $VM_HOME/.config/workspace/.ssh/* 2>/dev/null || true
+    chmod 644 $VM_HOME/.config/workspace/.ssh/*.pub 2>/dev/null || true
+    chmod 644 $VM_HOME/.config/workspace/.ssh/known_hosts 2>/dev/null || true
+    # Copy gitconfig
+    cp $VM_HOME/.gitconfig $VM_HOME/.config/workspace/.gitconfig 2>/dev/null || true
+    # Copy claude config (settings, CLAUDE.md, hooks — not conversation state)
+    mkdir -p $VM_HOME/.config/workspace/.claude
+    for f in CLAUDE.md settings.json settings.local.json keybindings.json policy-limits.json statusline-command.sh; do
+      cp $VM_HOME/.claude/\$f $VM_HOME/.config/workspace/.claude/ 2>/dev/null || true
+    done
+    if [ -d $VM_HOME/.claude/hooks ]; then
+      cp -r $VM_HOME/.claude/hooks $VM_HOME/.config/workspace/.claude/ 2>/dev/null || true
+    fi
+    chown -R $VM_USER:$VM_USER $VM_HOME/.config
+  "
+  SYNCED+=(".config/workspace/")
+}
+
 # --- Main ---
 main() {
   echo ""
@@ -193,10 +219,11 @@ main() {
   sync_gitconfig
   sync_ssh
   sync_claude
+  sync_workspace_config
 
   # Fix ownership for everything we touched
   vm_ssh "$VM_USER@$SERVER_IP" \
-    "chown -R $VM_USER:$VM_USER $VM_HOME/.gitconfig $VM_HOME/.ssh $VM_HOME/.claude 2>/dev/null || true"
+    "chown -R $VM_USER:$VM_USER $VM_HOME/.gitconfig $VM_HOME/.ssh $VM_HOME/.claude $VM_HOME/.config 2>/dev/null || true"
 
   echo ""
   if [[ ${#SYNCED[@]} -eq 0 ]]; then

@@ -34,7 +34,8 @@ apt-get install -y -qq \
   htop \
   python3 \
   python3-pip \
-  python3-venv
+  python3-venv \
+  socat
 
 # --- GitHub CLI ---
 log "Installing GitHub CLI..."
@@ -93,6 +94,14 @@ systemctl is-active --quiet docker || systemctl start docker
 log "Docker: $(docker --version)"
 log "Compose: $(docker compose version)"
 
+# --- Build workspace Docker image (if build context was provided) ---
+if [[ -d /tmp/docker-workspace ]]; then
+  log "Building workspace Docker image..."
+  docker build -t agent-dev-space:latest /tmp/docker-workspace
+  rm -rf /tmp/docker-workspace
+  log "Workspace image: $(docker images agent-dev-space:latest --format '{{.Size}}')"
+fi
+
 # --- Create agentbox user ---
 log "Creating agentbox user..."
 if ! id -u agentbox &>/dev/null; then
@@ -126,6 +135,13 @@ if ! su - agentbox -c "echo 'agentbox ssh ok'" &>/dev/null; then
   err "agentbox user verification failed. Aborting before SSH hardening."
   exit 1
 fi
+
+# --- Workspace config directory (shared mounts for containers) ---
+log "Setting up workspace config directories..."
+mkdir -p "$AGENTBOX_HOME/.config/workspace/.ssh"
+mkdir -p "$AGENTBOX_HOME/.ssh-agent"
+touch "$AGENTBOX_HOME/.config/workspace/.gitconfig"
+chown -R agentbox:agentbox "$AGENTBOX_HOME/.config" "$AGENTBOX_HOME/.ssh-agent"
 
 # --- Harden SSH ---
 log "Hardening SSH..."
@@ -197,27 +213,29 @@ TMUX
 
 chown agentbox:agentbox "$AGENTBOX_HOME/.tmux.conf"
 
-# --- SSH agent forwarding fix for tmux ---
-# When SSH reconnects, the SSH_AUTH_SOCK path changes but tmux keeps the old one.
-# This creates a stable symlink that gets updated on every login, so processes
-# inside tmux (including Claude Code) always find the active agent socket.
+# --- SSH agent forwarding for tmux + containers ---
+# Uses socat to proxy the SSH agent socket to a fixed path (~/.ssh-agent/agent.sock).
+# The fixed path is mounted into workspace containers as a DIRECTORY mount, so when
+# socat recreates the socket after SSH reconnect, containers see the new socket.
 # Must be BEFORE the non-interactive guard in .bashrc so it runs for all sessions.
-log "Setting up SSH agent forwarding for tmux..."
+log "Setting up SSH agent forwarding for tmux + containers..."
 
-AGENT_BLOCK='# --- SSH agent forwarding through tmux ---
-# Update stable symlink to current SSH agent socket on each login.
-# Processes inside tmux use the symlink, which always points to the live socket.
-if [ -n "$SSH_AUTH_SOCK" ] && [ "$SSH_AUTH_SOCK" != "$HOME/.ssh/agent.sock" ]; then
-    ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
-    export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+AGENT_BLOCK='# --- SSH agent forwarding through tmux + containers ---
+# Proxy SSH agent socket to a fixed path via socat. The ~/.ssh-agent/ directory
+# is mounted into workspace containers, so they always have access to the agent.
+if [ -n "$SSH_AUTH_SOCK" ] && [ "$SSH_AUTH_SOCK" != "$HOME/.ssh-agent/agent.sock" ]; then
+    pkill -f "socat.*\.ssh-agent/agent\.sock" 2>/dev/null || true
+    rm -f "$HOME/.ssh-agent/agent.sock"
+    nohup socat UNIX-LISTEN:"$HOME/.ssh-agent/agent.sock",fork UNIX-CONNECT:"$SSH_AUTH_SOCK" </dev/null >/dev/null 2>&1 &
+    export SSH_AUTH_SOCK="$HOME/.ssh-agent/agent.sock"
 fi
 '
 
-# Prepend to .bashrc (before the non-interactive guard)
-if ! grep -q 'SSH agent forwarding through tmux' "$AGENTBOX_HOME/.bashrc" 2>/dev/null; then
-  printf '%s\n' "$AGENT_BLOCK" | cat - "$AGENTBOX_HOME/.bashrc" > /tmp/.bashrc.tmp
-  mv /tmp/.bashrc.tmp "$AGENTBOX_HOME/.bashrc"
-fi
+# Remove any existing agent block from .bashrc (handles upgrades from symlink to socat)
+sed -i '/# --- SSH agent forwarding through tmux/,/^fi$/d' "$AGENTBOX_HOME/.bashrc" 2>/dev/null || true
+# Prepend new block (before the non-interactive guard)
+printf '%s\n' "$AGENT_BLOCK" | cat - "$AGENTBOX_HOME/.bashrc" > /tmp/.bashrc.tmp
+mv /tmp/.bashrc.tmp "$AGENTBOX_HOME/.bashrc"
 
 chown agentbox:agentbox "$AGENTBOX_HOME/.bashrc"
 
