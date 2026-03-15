@@ -107,7 +107,7 @@ tasks:
         echo ""
         echo "--- VM reachable ---"
         ssh {{.SSH_OPTS}} -o ConnectTimeout=5 agentbox@{{.SERVER_IP}} \
-          "uptime; echo ''; echo '--- tmux sessions ---'; tmux list-sessions 2>/dev/null || echo 'No tmux sessions'; echo ''; echo '--- disk ---'; df -h / | tail -1; echo ''; echo '--- memory ---'; free -h | grep Mem; echo ''; echo '--- claude ---'; claude --version 2>/dev/null || echo 'not found'" \
+          "uptime; echo ''; echo '--- tmux sessions ---'; tmux list-sessions 2>/dev/null || echo 'No tmux sessions'; echo ''; echo '--- disk ---'; df -h / | tail -1; echo ''; echo '--- memory ---'; free -h | grep Mem; echo ''; echo '--- claude ---'; claude --version 2>/dev/null || echo 'not found'; echo ''; echo '--- docker ---'; docker --version 2>/dev/null || echo 'not installed'; docker compose version 2>/dev/null || echo ''" \
           2>/dev/null || echo "VM not reachable"
     vars:
       SERVER_IP:

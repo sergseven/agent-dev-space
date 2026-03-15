@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # setup-vm.sh — Runs on the Hetzner VM as root.
-# Installs Node.js LTS, tmux, Claude Code, dev tools. Hardens SSH. Creates agentbox user.
+# Installs Node.js LTS, tmux, Claude Code, Docker, dev tools. Hardens SSH. Creates agentbox user.
 #
 set -euo pipefail
 
@@ -68,13 +68,33 @@ if ! command -v code &>/dev/null; then
 fi
 log "VS Code CLI: $(code version 2>/dev/null | head -1 || echo 'installed')"
 
+# --- Docker Engine ---
+log "Installing Docker Engine..."
+if ! command -v docker &>/dev/null; then
+  apt-get install -y -qq ca-certificates gnupg
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update -qq
+  apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+fi
+systemctl enable docker
+systemctl is-active --quiet docker || systemctl start docker
+log "Docker: $(docker --version)"
+log "Compose: $(docker compose version)"
+
 # --- Create agentbox user ---
 log "Creating agentbox user..."
 if ! id -u agentbox &>/dev/null; then
-  useradd -m -s /bin/bash -G sudo agentbox
+  useradd -m -s /bin/bash -G sudo,docker agentbox
   # Allow sudo without password for agentbox
   echo "agentbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agentbox
 fi
+usermod -aG docker agentbox
 
 # --- SSH key for agentbox user ---
 log "Setting up SSH key for agentbox user..."
@@ -204,5 +224,7 @@ log "  Claude Code: $CLAUDE_VERSION"
 log "  VS Code CLI: $(code version 2>/dev/null | head -1 || echo 'n/a')"
 log "  GitHub CLI: $(gh --version 2>/dev/null | head -1 || echo 'n/a')"
 log "  Python: $(python3 --version 2>/dev/null || echo 'n/a')"
+log "  Docker: $(docker --version 2>/dev/null || echo 'n/a')"
+log "  Compose: $(docker compose version 2>/dev/null || echo 'n/a')"
 log "  tmux: $(tmux -V)"
 log ""
