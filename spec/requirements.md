@@ -65,10 +65,13 @@ task connect
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
 | **S2-01** | IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | 1        |
 | **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
-| **S2-03** | Snapshot-based provisioning — pre-bake a Hetzner snapshot with all software for faster (~2 min) VM creation | 4        |
+| **S2-03** | Dockerized workspace environment — all dev tools in a Docker image, provider-portable (see below)           | 1        |
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
-| **S2-05** | Docker + Docker Compose pre-installed — for running user workloads                                          | 3        |
+| **S2-05** | Docker + Docker Compose pre-installed — prerequisite for S2-03 and user workloads                           | 1        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
+| **S2-10** | Parallel workspaces — multiple independent dev sessions on same repo via git worktrees (see below)          | 2        |
+| **S2-11** | Port forwarding — `task forward <port>` opens SSH tunnel for viewing remote web apps locally (see below)    | 1        |
+| **S2-12** | Remote display (noVNC) — lightweight desktop + noVNC for accessing any GUI app via web browser (see below)  | 2        |
 | **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
 | **S2-09** | ✅ Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`, `python3-venv`                              | done     |
 
@@ -164,6 +167,102 @@ task tunnel:jb          # prints connection instructions
 | `task tunnel:code` | Start VS Code dev tunnel on VM |
 | `task tunnel:jb` | Print JetBrains Gateway connection instructions |
 
+### S2-03: Dockerized workspace environment
+
+**Goal**: All dev tools (Node.js, Claude Code, VS Code CLI, gh, python3, etc.) are baked into a Docker image. Provisioning a VM means installing Docker and pulling the image — no long `setup-vm.sh` install chain, no vendor-specific snapshots.
+
+**Why not Hetzner snapshots**: Snapshots are provider-specific. A Docker image works on any VM that runs Docker — Hetzner, AWS, GCP, DigitalOcean, bare metal.
+
+**How it works**:
+
+1. A `Dockerfile` in the repo defines the workspace image with all tools pre-installed
+2. Image is built and pushed to a container registry (GitHub Container Registry or Docker Hub)
+3. `setup-vm.sh` installs Docker, pulls the image, and runs it
+4. The container mounts `/home/agentbox` from the host for persistence
+5. SSH into the VM lands inside the container (or the container runs as the workspace shell)
+
+**Benefits**:
+- **Fast provision** — `docker pull` takes ~1 min vs ~8 min install from scratch
+- **Provider-portable** — no vendor lock-in, works anywhere Docker runs
+- **Versioned** — image tags pin exact tool versions, reproducible across VMs
+- **Easy updates** — rebuild and push image; new VMs get latest automatically
+- **Local testing** — developers can run the same image locally for parity
+
+### S2-10: Parallel workspaces
+
+**Goal**: Run multiple independent Claude Code sessions on the same repo on a single VM, each with its own working directory, tmux session, and port range — no conflicts.
+
+**Why**: A developer working on two features (or reviewing a PR while building something else) needs isolated environments. Without this, two Claude Code agents editing the same files will clobber each other.
+
+**How it works**:
+
+1. `task workspace create <name>` creates:
+   - A git worktree at `~/workspaces/<name>/` (branched from current HEAD or a specified branch)
+   - A dedicated tmux session named `ws-<name>`
+   - A port range assignment (workspace 1 → 3001-3099, workspace 2 → 3101-3199, etc.)
+2. `task workspace list` shows all workspaces with status, branch, and port range
+3. `task workspace connect <name>` attaches to the workspace's tmux session
+4. `task workspace destroy <name>` cleans up worktree + tmux session
+
+**Port convention**:
+- Base port = `3001 + (workspace_index * 100)`
+- Each workspace gets a 100-port range for dev servers, test runners, etc.
+- Avoids conflicts when multiple workspaces run servers simultaneously
+
+**Integration with TUI connector (S2-08)**:
+- Workspace tmux sessions appear in the session list with a `[ws]` badge
+- Creating a new workspace is an option alongside creating a plain tmux session
+
+### S2-11: Port forwarding
+
+**Goal**: One command to view a web app running on the remote VM in your local browser. No IDE required.
+
+**Usage**:
+```bash
+task forward 3000              # forward single port
+task forward 3000 5432 8080    # forward multiple ports
+```
+
+**How it works**:
+- Opens SSH tunnel(s): `ssh -L <port>:localhost:<port> agentbox@<VM_IP>`
+- Remote app at port 3000 becomes accessible at `http://localhost:3000` in local browser
+- Runs in foreground — Ctrl+C to stop
+- Works alongside VS Code tunnel port forwarding but requires no IDE
+
+**When to use vs noVNC (S2-12)**:
+- Port forwarding: web apps with a URL (React, Next.js, APIs, Storybook)
+- noVNC: GUI apps that render to a display (Android emulator, desktop browsers, graphical tools)
+
+### S2-12: Remote display (noVNC)
+
+**Goal**: Access any GUI application running on the VM through a web browser — like a lightweight VDI. Required for Android emulator (S4-06) and useful for visual debugging, browser testing, or any graphical tool.
+
+**How it works**:
+
+1. VM runs a lightweight desktop environment (Xfce or similar) on a virtual framebuffer (Xvfb)
+2. VNC server (TigerVNC/x11vnc) exposes the desktop
+3. noVNC (WebSocket-to-VNC bridge) serves a web client
+4. User accesses `http://<VM_IP>:6080` (or via SSH tunnel: `task forward 6080`) in any browser
+
+**Setup** (automated in `setup-vm.sh`):
+- Installs Xvfb, Xfce4 (minimal), TigerVNC, noVNC
+- Systemd service starts VNC + noVNC on boot
+- Secured via SSH tunnel (no open ports) or optional password
+
+**Usage**:
+```bash
+task vnc              # starts noVNC + opens SSH tunnel to port 6080
+                      # prints URL: http://localhost:6080
+task vnc:stop         # stops the remote display
+```
+
+**What works over noVNC**:
+- Full desktop with mouse/keyboard input
+- Run Chromium, Firefox, or any GUI app
+- Android emulator (S4-06)
+- Visual debugging tools, GUI diff viewers
+- Accessible from any device with a browser (laptop, tablet, phone)
+
 ---
 
 ## Stage 3 — Messenger Control
@@ -188,9 +287,40 @@ task tunnel:jb          # prints connection instructions
 |-----------|-------------------------------------------------------------------------|----------|
 | **S4-01** | Additional agents: Codex CLI, OpenCode, Aider — user picks which to use | 3        |
 | **S4-02** | Playwright MCP + Chromium in Docker — Claude can control a browser      | 1        |
-| **S4-03** | noVNC — user can observe/interact with the remote browser via web       | 2        |
 | **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agent-dev-space.dev`            | 5        |
 | **S4-05** | MCP servers pre-installed: memory server, GitHub, filesystem            | 3        |
+| **S4-06** | Android emulator — remote Android dev via emulator rendered through noVNC (S2-12), requires KVM (see below) | 2        |
+
+### S4-06: Android emulator
+
+**Goal**: Run an Android emulator on the remote VM, interact with it via noVNC (S2-12). Enables full Android development without local compute.
+
+**Prerequisites**:
+- **S2-12 (noVNC)** — emulator renders to the remote display
+- **KVM support** — Android emulator without hardware acceleration is unusably slow. Requires nested virtualization or bare-metal server.
+
+**Hetzner compatibility**:
+- Shared VMs (CX-series): **no KVM** — emulator won't work
+- Dedicated servers (AX/EX-series): **KVM supported** — emulator runs at near-native speed
+- Provisioning should detect KVM support (`grep -c vmx /proc/cpuinfo`) and warn if unavailable
+
+**Setup** (automated):
+- Installs Android SDK command-line tools, platform-tools, emulator
+- Creates a default AVD (Android Virtual Device) with a recent API level
+- Emulator launches in noVNC desktop with GPU acceleration (swiftshader if no GPU)
+
+**Usage**:
+```bash
+task android:start         # launches emulator in noVNC desktop
+task android:stop          # stops emulator
+task vnc                   # connect to see/interact with emulator
+```
+
+**What works**:
+- Full emulator interaction via noVNC (touch → click, gestures, keyboard)
+- `adb` available on VM for CLI interaction, app install, logcat
+- Android Studio or Fleet can connect via JetBrains Gateway (S2-01) with emulator visible in noVNC
+- Claude Code can run `adb` commands to install APKs, take screenshots, run tests
 
 ---
 
