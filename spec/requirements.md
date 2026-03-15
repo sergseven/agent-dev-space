@@ -63,9 +63,9 @@ task connect
 
 | ID        | Requirement                                                                                                 | Priority |
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
-| **S2-01** | IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | 1        |
+| **S2-01** | ✅ IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | done     |
 | **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
-| **S2-03** | Workspace Docker image — all dev tools baked into a Docker image, provider-portable (see below)             | 1        |
+| **S2-03** | ✅ Workspace Docker image — all dev tools baked into a Docker image, provider-portable (see below)             | done     |
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
 | **S2-05** | ✅ Docker Engine pre-installed on host VM — prerequisite for workspace containers (S2-03, S2-10)               | done     |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
