@@ -9,6 +9,12 @@ LOG_PREFIX="[setup-vm]"
 log()  { echo "$LOG_PREFIX $1"; }
 err()  { echo "$LOG_PREFIX ERROR: $1" >&2; }
 
+# --- Wait for any existing apt locks (e.g. unattended-upgrades after reboot) ---
+log "Waiting for apt locks..."
+while fuser /var/lib/dpkg/lock-frontend &>/dev/null; do
+  sleep 2
+done
+
 # --- System update ---
 log "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive

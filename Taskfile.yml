@@ -127,8 +127,8 @@ tasks:
   setup:
     desc: Re-run the setup script on an existing VM (idempotent)
     cmds:
-      - scp {{.SSH_OPTS}} scripts/setup-vm.sh root@{{.SERVER_IP}}:/tmp/setup-vm.sh
-      - ssh {{.SSH_OPTS}} root@{{.SERVER_IP}} "bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"
+      - scp {{.SSH_OPTS}} scripts/setup-vm.sh agentbox@{{.SERVER_IP}}:/tmp/setup-vm.sh
+      - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "sudo bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
