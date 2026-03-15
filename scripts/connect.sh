@@ -366,29 +366,31 @@ run_session_selector() {
   local ip="$1"
   local ws_name="$2"
 
-  local raw_sessions
-  raw_sessions="$(fetch_sessions "$ip" "$ws_name")"
+  while true; do  # outer loop — refreshes session list
+    local raw_sessions
+    raw_sessions="$(fetch_sessions "$ip" "$ws_name")"
 
-  local -a names=()
-  local -a details=()
-  local -a statuses=()
+    local -a names=()
+    local -a details=()
+    local -a statuses=()
 
-  while IFS='|' read -r name windows created status; do
-    [[ -z "$name" ]] && continue
-    names+=("$name")
-    local time_str
-    time_str="$(format_time "$created")"
-    details+=("${windows} window(s) · created $time_str")
-    statuses+=("$status")
-  done <<< "$raw_sessions"
+    while IFS='|' read -r name windows created status; do
+      [[ -z "$name" ]] && continue
+      names+=("$name")
+      local time_str
+      time_str="$(format_time "$created")"
+      details+=("${windows} window(s) · created $time_str")
+      statuses+=("$status")
+    done <<< "$raw_sessions"
 
-  local session_count=${#names[@]}
-  local total_items=$((session_count + 2))  # +1 for "New session", +1 for "Back"
-  local selected=0
+    local session_count=${#names[@]}
+    local total_items=$((session_count + 2))  # +1 for "New session", +1 for "Back"
+    local selected=0
+    local action=""
 
-  tput civis 2>/dev/null || true
+    tput civis 2>/dev/null || true
 
-  while true; do
+    while true; do  # inner loop — TUI navigation
     printf '\033[2J\033[H'
 
     # Header
@@ -441,7 +443,7 @@ run_session_selector() {
     fi
 
     echo ""
-    echo -e "  ${DIM}↑/↓ navigate · enter select · q quit${NC}"
+    echo -e "  ${DIM}↑/↓ navigate · enter select · x kill · q quit${NC}"
 
     # Read input
     local key
@@ -453,10 +455,18 @@ run_session_selector() {
         echo ""
         exit 0
         ;;
+      x|X)  # Kill session
+        if (( selected < session_count )); then
+          vm_ssh "agentbox@$ip" \
+            "docker exec ws-${ws_name} tmux kill-session -t '${names[$selected]}'" &>/dev/null || true
+          break  # refresh session list
+        fi
+        ;;
       "")  # Enter
         if (( selected == session_count + 1 )); then
-          # Back
-          return
+          # Back to workspace selector
+          action="back"
+          break
         elif (( selected == session_count )); then
           # New session
           tput cnorm 2>/dev/null || true
@@ -473,13 +483,16 @@ run_session_selector() {
         case "$seq" in
           '[A')  (( selected > 0 )) && selected=$((selected - 1)) ;;
           '[B')  (( selected < total_items - 1 )) && selected=$((selected + 1)) ;;
-          '')    return ;;  # Plain Escape = back
+          '')    action="back"; break ;;  # Plain Escape = back
         esac
         ;;
       k|K)  (( selected > 0 )) && selected=$((selected - 1)) ;;
       j|J)  (( selected < total_items - 1 )) && selected=$((selected + 1)) ;;
     esac
-  done
+    done  # end inner TUI loop
+
+    [[ "$action" == "back" ]] && return  # back to workspace selector
+  done  # end outer refresh loop
 }
 
 # ============================================================================
