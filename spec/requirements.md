@@ -63,7 +63,7 @@ task connect
 
 | ID        | Requirement                                                                                                 | Priority |
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
-| **S2-01** | ⬚ IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH into workspace containers (needs update post S2-10) | 1        |
+| **S2-01** | ✅ IDE Remote Access — VS Code tunnel (`task tunnel:code WS=<name>`) + JetBrains Gateway SSH (`task tunnel:jb WS=<name>`) into workspace containers | done     |
 | **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
 | **S2-03** | ✅ Workspace Docker image — all dev tools baked into a Docker image, provider-portable (see below)             | done     |
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
@@ -134,7 +134,11 @@ task connect
 
 **Goal**: Developers can use their full local IDE (VS Code or JetBrains) connected to a workspace container — edit files, run terminals, use extensions/plugins, all on remote compute.
 
-> **⚠️ Post-S2-10 update needed**: Current `tunnel:code` and `tunnel:jb` tasks connect to the host VM, not workspace containers. Since S2-10, all dev work happens inside `ws-*` containers. These tasks need to run `code tunnel` inside a workspace container via `docker exec`, and JetBrains Gateway instructions need to account for the container layer (e.g., SSH into host then `docker exec`, or expose SSH from container).
+**Implementation**:
+- **VS Code Remote Tunnel**: `task tunnel:code WS=<name>` runs `code tunnel` inside the workspace container via `docker exec`. Connect from VS Code → Remote Explorer → Tunnels.
+- **JetBrains Gateway**: `task tunnel:jb WS=<name>` establishes an SSH tunnel from `localhost:12022` to the container's SSH port (port_base + 22, bound to VM localhost only). Gateway connects to `localhost:12022` as user `agentbox` and auto-installs the IDE backend inside the container.
+- **SSH server in workspace image**: `openssh-server` is baked into the image. The container entrypoint starts `sshd` before `sleep infinity`. `authorized_keys` is built from the user's public keys by `sync-config.sh` and bind-mounted read-only.
+- **No firewall changes needed**: Container SSH port is bound to `127.0.0.1` on the host VM — not exposed externally. The tunnel uses the existing SSH connection to the VM.
 
 **Two approaches, both supported**:
 

@@ -192,6 +192,9 @@ sync_workspace_config() {
     chmod 600 $VM_HOME/.config/workspace/.ssh/* 2>/dev/null || true
     chmod 644 $VM_HOME/.config/workspace/.ssh/*.pub 2>/dev/null || true
     chmod 644 $VM_HOME/.config/workspace/.ssh/known_hosts 2>/dev/null || true
+    # Build authorized_keys from public keys so container SSH auth works
+    cat $VM_HOME/.config/workspace/.ssh/*.pub > $VM_HOME/.config/workspace/.ssh/authorized_keys 2>/dev/null || true
+    chmod 600 $VM_HOME/.config/workspace/.ssh/authorized_keys 2>/dev/null || true
     # Copy gitconfig
     cp $VM_HOME/.gitconfig $VM_HOME/.config/workspace/.gitconfig 2>/dev/null || true
     # Copy claude config (settings, CLAUDE.md, hooks — not conversation state)

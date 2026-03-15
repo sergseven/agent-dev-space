@@ -49,9 +49,18 @@ tasks:
   # --- IDE tunnels ---
 
   tunnel:code:
-    desc: Start VS Code dev tunnel on VM (connect from local VS Code)
+    desc: "Start VS Code dev tunnel inside a workspace container. Usage: task tunnel:code WS=<name>"
     cmds:
-      - ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} "code tunnel --accept-server-license-terms"
+      - |
+        if [[ -z "{{.WS}}" ]]; then
+          echo "Error: WS is required. Usage: task tunnel:code WS=<workspace-name>"
+          exit 1
+        fi
+        echo "Starting VS Code tunnel in workspace ws-{{.WS}} ..."
+        echo "Open VS Code → Remote Explorer → Tunnels to connect."
+        echo ""
+        ssh {{.SSH_OPTS}} -t agentbox@{{.SERVER_IP}} \
+          "docker exec -it ws-{{.WS}} code tunnel --accept-server-license-terms"
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-
@@ -59,24 +68,39 @@ tasks:
       - test -f {{.STATE_FILE}}
 
   tunnel:jb:
-    desc: Print JetBrains Gateway SSH connection instructions
+    desc: "Forward workspace SSH to localhost and print JetBrains Gateway instructions. Usage: task tunnel:jb WS=<name>"
     cmds:
       - |
+        if [[ -z "{{.WS}}" ]]; then
+          echo "Error: WS is required. Usage: task tunnel:jb WS=<workspace-name>"
+          exit 1
+        fi
+        SERVER_IP="{{.SERVER_IP}}"
+        WS="{{.WS}}"
+        PORT_BASE=$(ssh {{.SSH_OPTS}} agentbox@${SERVER_IP} \
+          "docker inspect ws-${WS} 2>/dev/null | jq -r '.[0].Config.Labels[\"ads.port-base\"]'" 2>/dev/null || echo "")
+        if [[ -z "${PORT_BASE}" ]] || [[ "${PORT_BASE}" == "null" ]]; then
+          echo "Error: workspace 'ws-${WS}' not found. Run 'task connect' to create it."
+          exit 1
+        fi
+        SSH_PORT=$((PORT_BASE + 22))
+        LOCAL_PORT=12022
         echo ""
-        echo "=== JetBrains Gateway (SSH) ==="
+        echo "=== JetBrains Gateway — ws-${WS} ==="
         echo ""
-        echo "1. Open JetBrains Gateway"
-        echo "2. Click 'SSH' → 'New Connection'"
-        echo "3. Enter:"
-        echo "     Host: {{.SERVER_IP}}"
-        echo "     User: agentbox"
-        echo "     Auth: Key pair"
-        echo "4. Select your IDE (IntelliJ, PyCharm, GoLand, etc.)"
-        echo "5. Choose project directory on VM"
+        echo "SSH tunnel active: localhost:${LOCAL_PORT} → container SSH"
         echo ""
-        echo "Gateway auto-installs the IDE backend on the VM."
-        echo "SSH agent forwarding is pre-configured."
+        echo "Configure JetBrains Gateway:"
+        echo "  New Connection → SSH"
+        echo "  Host: localhost     Port: ${LOCAL_PORT}"
+        echo "  User: agentbox      Auth: Key (your existing SSH key)"
         echo ""
+        echo "Gateway auto-installs the IDE backend inside the container."
+        echo "SSH agent forwarding is active — git auth works inside the IDE."
+        echo ""
+        echo "Press Ctrl-C to stop the tunnel."
+        echo ""
+        exec ssh {{.SSH_OPTS}} -N -L ${LOCAL_PORT}:localhost:${SSH_PORT} agentbox@${SERVER_IP}
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-

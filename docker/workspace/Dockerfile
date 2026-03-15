@@ -15,7 +15,7 @@ ENV CLEANUP="rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/* \
 # Layer 1: System packages + GitHub CLI (both apt-based, single update)
 RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
-      git curl wget build-essential jq tmux unzip htop openssh-client locales \
+      git curl wget build-essential jq tmux unzip htop openssh-client openssh-server locales \
       python3 python3-pip python3-venv \
       ca-certificates gnupg sudo && \
     sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen && locale-gen && \
@@ -75,12 +75,14 @@ USER root
 # Layer 6: tmux config + bashrc SSH agent forwarding + mount point dirs
 COPY files/tmux.conf /home/agentbox/.tmux.conf
 COPY files/bashrc-agent.sh /tmp/bashrc-agent.sh
+COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN cat /tmp/bashrc-agent.sh /home/agentbox/.bashrc > /tmp/.bashrc.new && \
     mv /tmp/.bashrc.new /home/agentbox/.bashrc && \
     rm /tmp/bashrc-agent.sh && \
+    chmod +x /usr/local/bin/entrypoint.sh && \
     mkdir -p /home/agentbox/.ssh /home/agentbox/.ssh-agent /home/agentbox/.claude /home/agentbox/projects && \
     chown -R agentbox:agentbox /home/agentbox
 
 USER agentbox
 WORKDIR /home/agentbox
-CMD ["sleep", "infinity"]
+CMD ["/usr/local/bin/entrypoint.sh"]

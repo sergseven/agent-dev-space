@@ -119,6 +119,7 @@ create_workspace() {
   local port_base
   port_base="$(next_port_base "$ip")"
   local port_end=$((port_base + 99))
+  local ssh_port=$((port_base + 22))
 
   vm_ssh "agentbox@$ip" "docker run -d \
     --name ws-${ws_name} \
@@ -128,6 +129,7 @@ create_workspace() {
     -v /home/agentbox/.config/workspace/.ssh:/home/agentbox/.ssh:ro \
     -v /home/agentbox/.ssh-agent:/home/agentbox/.ssh-agent \
     -p ${port_base}-${port_end}:3000-3099 \
+    -p 127.0.0.1:${ssh_port}:22 \
     agent-dev-space:latest && \
     docker cp /home/agentbox/.config/workspace/.gitconfig ws-${ws_name}:/home/agentbox/.gitconfig && \
     docker exec ws-${ws_name} chown agentbox:agentbox /home/agentbox/.gitconfig && \
