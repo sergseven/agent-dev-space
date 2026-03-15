@@ -63,7 +63,7 @@ task connect
 
 | ID        | Requirement                                                                                                 | Priority |
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
-| **S2-01** | ✅ IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | done     |
+| **S2-01** | ⬚ IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH into workspace containers (needs update post S2-10) | 1        |
 | **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
 | **S2-03** | ✅ Workspace Docker image — all dev tools baked into a Docker image, provider-portable (see below)             | done     |
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
@@ -71,7 +71,7 @@ task connect
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
 | **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
 | **S2-09** | ✅ Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`, `python3-venv`                              | done     |
-| **S2-10** | Persistent workspaces — isolated Docker containers as dev environments, managed via TUI (see below)         | 1        |
+| **S2-10** | ✅ Persistent workspaces — isolated Docker containers as dev environments, managed via TUI (see below)       | done     |
 | **S2-11** | Port forwarding — `task forward <port>` opens SSH tunnel for viewing remote web apps locally (see below)    | 1        |
 | **S2-12** | Remote display (noVNC) — lightweight desktop + noVNC for accessing any GUI app via web browser (see below)  | 2        |
 
@@ -132,7 +132,9 @@ task connect
 
 ### S2-01: IDE Remote Access
 
-**Goal**: Developers can use their full local IDE (VS Code or JetBrains) connected to the remote VM — edit files, run terminals, use extensions/plugins, all on remote compute.
+**Goal**: Developers can use their full local IDE (VS Code or JetBrains) connected to a workspace container — edit files, run terminals, use extensions/plugins, all on remote compute.
+
+> **⚠️ Post-S2-10 update needed**: Current `tunnel:code` and `tunnel:jb` tasks connect to the host VM, not workspace containers. Since S2-10, all dev work happens inside `ws-*` containers. These tasks need to run `code tunnel` inside a workspace container via `docker exec`, and JetBrains Gateway instructions need to account for the container layer (e.g., SSH into host then `docker exec`, or expose SSH from container).
 
 **Two approaches, both supported**:
 
