@@ -122,6 +122,37 @@ tasks:
     preconditions:
       - test -f {{.STATE_FILE}}
 
+  # --- Workspace image ---
+
+  image:build:
+    desc: Build the workspace Docker image locally
+    cmds:
+      - docker build --platform linux/amd64 -t agent-dev-space:latest docker/workspace
+
+  image:test:
+    desc: Build and smoke-test the workspace image
+    cmds:
+      - task: image:build
+      - |
+        echo "--- Smoke test ---"
+        docker run --rm --platform linux/amd64 agent-dev-space:latest bash -c '
+          set -e
+          echo "node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "claude: $(claude --version 2>/dev/null || echo ok)"
+          echo "gh: $(gh --version | head -1)"
+          echo "python3: $(python3 --version)"
+          echo "git: $(git --version)"
+          echo "tmux: $(tmux -V)"
+          echo "code: $(code version 2>/dev/null | head -1 || echo ok)"
+          echo "user: $(whoami) uid=$(id -u)"
+          test "$(whoami)" = "agentbox"
+          test "$(id -u)" = "1000"
+          test -f ~/.tmux.conf
+          grep -q "SSH agent forwarding" ~/.bashrc
+          echo "--- All checks passed ---"
+        '
+
   # --- Maintenance ---
 
   setup:
