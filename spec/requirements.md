@@ -65,21 +65,21 @@ task connect
 |-----------|-------------------------------------------------------------------------------------------------------------|----------|
 | **S2-01** | IDE Remote Access — VS Code tunnel + JetBrains Gateway SSH for full IDE experience on VM                    | 1        |
 | **S2-02** | ✅ Multiple named tmux sessions — create/manage via TUI connector (S2-08)                                    | done     |
-| **S2-03** | Dockerized workspace environment — all dev tools in a Docker image, provider-portable (see below)           | 1        |
+| **S2-03** | Workspace Docker image — all dev tools baked into a Docker image, provider-portable (see below)             | 1        |
 | **S2-04** | ✅ Basic firewall — ufw (port 22 only), fail2ban (SSH brute-force protection)                                | done     |
-| **S2-05** | Docker + Docker Compose pre-installed — prerequisite for S2-03 and user workloads                           | 1        |
+| **S2-05** | Docker Engine pre-installed on host VM — prerequisite for workspace containers (S2-03, S2-10)               | 1        |
 | **S2-06** | Dotfiles support — user can point to a dotfiles repo that gets cloned on provision                          | 4        |
-| **S2-10** | Parallel workspaces — multiple independent dev sessions on same repo via git worktrees (see below)          | 2        |
-| **S2-11** | Port forwarding — `task forward <port>` opens SSH tunnel for viewing remote web apps locally (see below)    | 1        |
-| **S2-12** | Remote display (noVNC) — lightweight desktop + noVNC for accessing any GUI app via web browser (see below)  | 2        |
 | **S2-08** | ✅ Interactive tmux session connector — TUI to list, select, or create tmux sessions via `task connect`      | done     |
 | **S2-09** | ✅ Dev tools pre-installed — `gh` (GitHub CLI), `python3`, `pip`, `python3-venv`                              | done     |
+| **S2-10** | Persistent workspaces — isolated Docker containers as dev environments, managed via TUI (see below)         | 1        |
+| **S2-11** | Port forwarding — `task forward <port>` opens SSH tunnel for viewing remote web apps locally (see below)    | 1        |
+| **S2-12** | Remote display (noVNC) — lightweight desktop + noVNC for accessing any GUI app via web browser (see below)  | 2        |
 
-### S2-08: Interactive tmux session connector
+### S2-08: Interactive TUI connector
 
-**Goal**: `task connect` opens a professional TUI that lists all tmux sessions on the VM with status (attached/detached, window count, creation time), lets the user navigate with arrow keys or vim bindings, and either attach to an existing session or create a new named one.
+**Goal**: `task connect` opens a two-step TUI for workspace and session management. Step 1: select or create a workspace (Docker container). Step 2: select or create a tmux session inside that workspace.
 
-**Behavior**:
+**Step 1 — Workspace selection**:
 
 ```
   ╔══════════════════════════════════════════╗
@@ -88,15 +88,31 @@ task connect
 
   Server: 49.13.x.x
 
+  Workspaces:
+
+   ▸ backend     ● running   3.2 GB
+     mobile-app  ○ stopped   1.8 GB
+
+   + New workspace
+
+  ↑/↓ navigate · enter select · d destroy · s stop/start · q quit
+```
+
+**Step 2 — tmux session selection** (inside chosen workspace):
+
+```
+  Workspace: backend · ● running
+
   Sessions:
 
    ▸ claude  ● attached
-      2 window(s) · created Mar 12 14:30
+      2 window(s) · created Mar 15 10:00
 
-     shell  ○ detached
-      1 window(s) · created Mar 12 15:00
+     server  ○ detached
+      1 window(s) · created Mar 15 11:30
 
    + New session
+   ← Back
 
   ↑/↓ navigate · enter select · q quit
 ```
@@ -104,9 +120,13 @@ task connect
 **Features**:
 - Arrow keys and j/k vim navigation
 - Highlighted selection row
-- Attached/detached status badges
+- Workspace management: create, stop/start, destroy from the TUI
+- Workspace status: running/stopped, disk usage
+- Multiple tmux sessions per workspace
+- Session status: attached/detached, window count, creation time
 - Session creation with custom name (defaults to `claude`)
-- Input validation for session names (alphanumeric, dash, underscore, dot)
+- Input validation for names (alphanumeric, dash, underscore, dot)
+- Stopped workspaces auto-start when selected
 - Connectivity check before rendering
 - Clean terminal restore on exit
 
@@ -167,51 +187,133 @@ task tunnel:jb          # prints connection instructions
 | `task tunnel:code` | Start VS Code dev tunnel on VM |
 | `task tunnel:jb` | Print JetBrains Gateway connection instructions |
 
-### S2-03: Dockerized workspace environment
+### S2-03: Workspace Docker image
 
-**Goal**: All dev tools (Node.js, Claude Code, VS Code CLI, gh, python3, etc.) are baked into a Docker image. Provisioning a VM means installing Docker and pulling the image — no long `setup-vm.sh` install chain, no vendor-specific snapshots.
+**Goal**: All dev tools (Node.js, Claude Code, VS Code CLI, gh, python3, etc.) are baked into a Docker image. This image is the base for every workspace container (S2-10). Provisioning a VM means installing Docker and pulling the image — no long `setup-vm.sh` install chain, no vendor-specific snapshots.
 
 **Why not Hetzner snapshots**: Snapshots are provider-specific. A Docker image works on any VM that runs Docker — Hetzner, AWS, GCP, DigitalOcean, bare metal.
 
 **How it works**:
 
-1. A `Dockerfile` in the repo defines the workspace image with all tools pre-installed
+1. A `Dockerfile` in the repo defines the workspace image (Ubuntu 24.04 base) with all tools pre-installed
 2. Image is built and pushed to a container registry (GitHub Container Registry or Docker Hub)
-3. `setup-vm.sh` installs Docker, pulls the image, and runs it
-4. The container mounts `/home/agentbox` from the host for persistence
-5. SSH into the VM lands inside the container (or the container runs as the workspace shell)
+3. `setup-vm.sh` installs Docker and pulls the image
+4. Each workspace container (S2-10) is an instance of this image
+
+**What's in the image**:
+- Ubuntu 24.04 (user-friendly, well-supported by dev tools)
+- Node.js, npm, Claude Code
+- VS Code CLI, gh, python3, pip, python3-venv
+- Git, curl, build-essential, common dev utilities
+- `agentbox` user with UID 1000
+
+**What's NOT in the image** (injected per-workspace):
+- SSH keys, gitconfig (mounted read-only from host)
+- Claude Code auth token (mounted from host)
+- Claude Code conversation state (per-workspace volume)
+- User's code and repos (cloned inside the container)
 
 **Benefits**:
-- **Fast provision** — `docker pull` takes ~1 min vs ~8 min install from scratch
+- **Fast workspace creation** — `docker run` takes seconds (image already pulled)
 - **Provider-portable** — no vendor lock-in, works anywhere Docker runs
-- **Versioned** — image tags pin exact tool versions, reproducible across VMs
-- **Easy updates** — rebuild and push image; new VMs get latest automatically
+- **Versioned** — image tags pin exact tool versions, reproducible
+- **Easy updates** — rebuild and push image; new workspaces get latest automatically
 - **Local testing** — developers can run the same image locally for parity
 
-### S2-10: Parallel workspaces
+### S2-10: Persistent workspaces
 
-**Goal**: Run multiple independent Claude Code sessions on the same repo on a single VM, each with its own working directory, tmux session, and port range — no conflicts.
+**Goal**: Multiple isolated dev environments on a single VM. Each workspace is a persistent Docker container with its own filesystem, tmux sessions, and port range. Managed entirely through the TUI connector (S2-08) — no manual `docker run` commands.
 
-**Why**: A developer working on two features (or reviewing a PR while building something else) needs isolated environments. Without this, two Claude Code agents editing the same files will clobber each other.
+**Architecture**:
 
-**How it works**:
+```
+Host VM (Ubuntu Server minimal)
+├── Docker Engine
+├── SSH server
+├── TUI connect script
+├── ~/.config/workspace/             # shared user config
+│   ├── .ssh/                        # SSH keys
+│   ├── .gitconfig                   # git identity
+│   └── .claude-auth/                # Claude Code auth token (shared)
+└── workspace state files
 
-1. `task workspace create <name>` creates:
-   - A git worktree at `~/workspaces/<name>/` (branched from current HEAD or a specified branch)
-   - A dedicated tmux session named `ws-<name>`
-   - A port range assignment (workspace 1 → 3001-3099, workspace 2 → 3101-3199, etc.)
-2. `task workspace list` shows all workspaces with status, branch, and port range
-3. `task workspace connect <name>` attaches to the workspace's tmux session
-4. `task workspace destroy <name>` cleans up worktree + tmux session
+Workspace "backend" (persistent Docker container)
+├── Ubuntu 24.04 (S2-03 image)
+├── /home/agentbox/                  # container's own filesystem
+│   ├── projects/                    # user clones whatever repos here
+│   ├── .claude/                     # per-workspace Claude state
+│   ├── .ssh/ (mounted from host, ro)
+│   └── .gitconfig (mounted from host, ro)
+├── tmux: "claude" session
+├── tmux: "server" session
+└── ports 3000-3099 → host 3100-3199
 
-**Port convention**:
-- Base port = `3001 + (workspace_index * 100)`
-- Each workspace gets a 100-port range for dev servers, test runners, etc.
-- Avoids conflicts when multiple workspaces run servers simultaneously
+Workspace "mobile-app" (persistent Docker container)
+├── independent filesystem
+├── tmux: "main" session
+└── ports 3000-3099 → host 3200-3299
+```
 
-**Integration with TUI connector (S2-08)**:
-- Workspace tmux sessions appear in the session list with a `[ws]` badge
-- Creating a new workspace is an option alongside creating a plain tmux session
+**Host VM role**: The host is lightweight — it runs Docker, SSH, and the TUI connect script. All dev work happens inside workspace containers. The host OS is Ubuntu Server (minimal) for Docker compatibility and ease of debugging.
+
+**Workspace container role**: Each container is a full dev environment. The user clones repos, installs additional tools, runs services (e.g. `apt install postgresql`) — all inside the container. The container is persistent: stopping and starting it preserves everything. It's a pet, not cattle.
+
+**Workspace lifecycle** (all managed via TUI):
+
+1. **Create**: User selects "+ New workspace" in TUI → enters name → container is created from S2-03 image with auto-assigned port range → user lands in a tmux session inside it
+2. **Connect**: User selects workspace → selects or creates tmux session → attached via `docker exec -it <container> tmux attach -t <session>`
+3. **Stop/Start**: User presses `s` on a workspace in TUI → container stops (preserves filesystem) or starts
+4. **Destroy**: User presses `d` on a workspace in TUI → confirmation prompt → container removed
+
+**Container creation** (executed by the TUI, not the user):
+
+```bash
+docker run -d \
+  --name ws-<name> \
+  --hostname <name> \
+  --restart unless-stopped \
+  -v /home/agentbox/.config/workspace/.ssh:/home/agentbox/.ssh:ro \
+  -v /home/agentbox/.config/workspace/.gitconfig:/home/agentbox/.gitconfig:ro \
+  -v /home/agentbox/.config/workspace/.claude-auth:/home/agentbox/.claude-auth:ro \
+  -p <port_base>-<port_end>:3000-3099 \
+  ghcr.io/your-org/agent-dev-space:latest \
+  sleep infinity
+```
+
+**Config bootstrapping**:
+- SSH keys and gitconfig are synced to the host once (via existing `sync-config.sh`)
+- Mounted read-only into every workspace container — no per-workspace sync needed
+- Claude Code auth token shared across workspaces (read-only mount)
+- Claude Code conversation state is per-workspace (lives inside the container filesystem)
+- Creating a new workspace requires no bootstrapping — just start working
+
+**One-time manual setup per workspace**:
+- Clone the repos you need: `git clone ...`
+- Install project-specific tools if the base image doesn't include them: `apt install ...`, `npm install`, etc.
+- These changes persist because the container is persistent
+
+**Port isolation**:
+- Each workspace gets a 100-port range mapped from container to host
+- Workspace 0: host 3000-3099, Workspace 1: host 3100-3199, etc.
+- Inside every container, apps use their natural ports (3000, 8080, etc.)
+- Docker maps them to the workspace's host range
+- `task workspace:forward <name> 3000` tunnels the correct host port to local 3000
+
+**Resource sharing**:
+- No CPU or RAM limits by default — workspaces share all host resources elastically
+- When one workspace is idle, the other can use all available CPU/RAM
+- Practical limit: 2-4 workspaces on a cx33 (4 CPU, 8GB RAM)
+
+**Disk**:
+- Each container has its own filesystem (Docker overlay) — fully independent
+- No git worktrees, no shared repos between workspaces
+- `workspace list` in TUI shows disk usage per workspace
+- Recommended: cx33 (80GB) minimum for multi-workspace usage
+
+**Services inside workspaces**:
+- Install and run services directly inside the container: `apt install postgresql`, `pip install redis`, etc.
+- They persist across container stop/start
+- No Docker Compose needed — the container IS the dev machine
 
 ### S2-11: Port forwarding
 
@@ -290,6 +392,7 @@ task vnc:stop         # stops the remote display
 | **S4-04** | Per-user subdomain with HTTPS (Caddy): `{user}.agent-dev-space.dev`            | 5        |
 | **S4-05** | MCP servers pre-installed: memory server, GitHub, filesystem            | 3        |
 | **S4-06** | Android emulator — remote Android dev via emulator rendered through noVNC (S2-12), requires KVM (see below) | 2        |
+| **S4-07** | Docker-in-Docker — run Docker inside workspace containers for containerized workloads (see below)           | 3        |
 
 ### S4-06: Android emulator
 
@@ -321,6 +424,27 @@ task vnc                   # connect to see/interact with emulator
 - `adb` available on VM for CLI interaction, app install, logcat
 - Android Studio or Fleet can connect via JetBrains Gateway (S2-01) with emulator visible in noVNC
 - Claude Code can run `adb` commands to install APKs, take screenshots, run tests
+
+### S4-07: Docker-in-Docker
+
+**Goal**: Run Docker inside workspace containers, enabling containerized workloads, `docker-compose` stacks, and container-based development workflows.
+
+**Why**: In S2-10, services run directly inside the workspace via `apt install`. This works for simple cases but limits developers who need to:
+- Build and test Docker images as part of their workflow
+- Run multi-service stacks via `docker-compose`
+- Use tools that assume Docker is available (Testcontainers, DevContainers, etc.)
+
+**Two approaches**:
+
+1. **Docker socket mount** (simpler, less isolated): Mount the host's Docker socket into the workspace container. The workspace shares the host's Docker daemon — containers started from inside the workspace are siblings, not children.
+   - Pro: No overhead, uses host Docker
+   - Con: Workspace can see/affect other workspaces' containers. Security concern for multi-user (not an issue for single-user).
+
+2. **True DinD** (fully isolated): Run a Docker daemon inside each workspace container using `--privileged` mode.
+   - Pro: Full isolation, each workspace has its own Docker
+   - Con: Requires privileged container, higher resource usage
+
+**Recommendation**: Docker socket mount for single-user. True DinD if/when multi-user becomes relevant (Stage 5+).
 
 ---
 
