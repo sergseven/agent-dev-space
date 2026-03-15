@@ -68,7 +68,7 @@ tasks:
       - test -f {{.STATE_FILE}}
 
   tunnel:jb:
-    desc: "Forward workspace SSH to localhost and print JetBrains Gateway instructions. Usage: task tunnel:jb WS=<name>"
+    desc: "Print JetBrains Gateway SSH connection info for a workspace container. Usage: task tunnel:jb WS=<name>"
     cmds:
       - |
         if [[ -z "{{.WS}}" ]]; then
@@ -84,23 +84,15 @@ tasks:
           exit 1
         fi
         SSH_PORT=$((PORT_BASE + 22))
-        LOCAL_PORT=12022
         echo ""
         echo "=== JetBrains Gateway — ws-${WS} ==="
         echo ""
-        echo "SSH tunnel active: localhost:${LOCAL_PORT} → container SSH"
-        echo ""
-        echo "Configure JetBrains Gateway:"
         echo "  New Connection → SSH"
-        echo "  Host: localhost     Port: ${LOCAL_PORT}"
-        echo "  User: agentbox      Auth: Key (your existing SSH key)"
+        echo "  Host: ${SERVER_IP}    Port: ${SSH_PORT}"
+        echo "  User: agentbox        Auth: Key (your existing SSH key)"
         echo ""
         echo "Gateway auto-installs the IDE backend inside the container."
-        echo "SSH agent forwarding is active — git auth works inside the IDE."
         echo ""
-        echo "Press Ctrl-C to stop the tunnel."
-        echo ""
-        exec ssh {{.SSH_OPTS}} -N -L ${LOCAL_PORT}:localhost:${SSH_PORT} agentbox@${SERVER_IP}
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-

@@ -136,9 +136,9 @@ task connect
 
 **Implementation**:
 - **VS Code Remote Tunnel**: `task tunnel:code WS=<name>` runs `code tunnel` inside the workspace container via `docker exec`. Connect from VS Code → Remote Explorer → Tunnels.
-- **JetBrains Gateway**: `task tunnel:jb WS=<name>` establishes an SSH tunnel from `localhost:12022` to the container's SSH port (port_base + 22, bound to VM localhost only). Gateway connects to `localhost:12022` as user `agentbox` and auto-installs the IDE backend inside the container.
+- **JetBrains Gateway**: `task tunnel:jb WS=<name>` prints direct SSH connection details (`<vm-ip>:<port_base+22>`). Gateway connects directly — no persistent tunnel needed.
 - **SSH server in workspace image**: `openssh-server` is baked into the image. The container entrypoint starts `sshd` before `sleep infinity`. `authorized_keys` is built from the user's public keys by `sync-config.sh` and bind-mounted read-only.
-- **No firewall changes needed**: Container SSH port is bound to `127.0.0.1` on the host VM — not exposed externally. The tunnel uses the existing SSH connection to the VM.
+- **Firewall**: `setup-vm.sh` opens `3000:3999/tcp` on ufw. Container SSH ports are `port_base + 22` (3022, 3122, …) — directly reachable from outside.
 
 **Two approaches, both supported**:
 

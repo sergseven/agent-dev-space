@@ -169,6 +169,7 @@ apt-get install -y -qq ufw
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
+ufw allow 3000:3999/tcp   # workspace container SSH (port_base+22) and services
 ufw --force enable
 
 # --- fail2ban ---
