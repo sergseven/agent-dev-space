@@ -32,7 +32,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y -qq nodejs && \
     eval "$CLEANUP"
 
-# Layer 3: VS Code CLI (for Remote Tunnels)
+# Layer 3: yq (YAML processor — needed by asdf android-sdk plugin)
+RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq
+
+# Layer 4: VS Code CLI (for Remote Tunnels)
 RUN curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64" \
       -o /tmp/vscode-cli.tar.gz && \
     tar -xzf /tmp/vscode-cli.tar.gz -C /usr/local/bin && \
@@ -45,7 +49,22 @@ RUN userdel -r ubuntu 2>/dev/null || true && \
     echo "agentbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agentbox && \
     chmod 0440 /etc/sudoers.d/agentbox
 
-# Layer 5: Claude Code — native installer (no Node.js dependency, auto-updates disabled)
+# Layer 5: asdf version manager + plugins
+USER agentbox
+ENV ASDF_DIR=/home/agentbox/.asdf
+ENV ASDF_DATA_DIR=/home/agentbox/.asdf
+ENV PATH="/home/agentbox/.asdf/shims:/home/agentbox/.asdf/bin:${PATH}"
+RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.15.0 && \
+    echo '. "$HOME/.asdf/asdf.sh"' >> ~/.bashrc && \
+    echo '. "$HOME/.asdf/completions/asdf.bash"' >> ~/.bashrc && \
+    asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git && \
+    asdf plugin add java https://github.com/halcyon/asdf-java.git && \
+    asdf plugin add gradle https://github.com/rfrancis/asdf-gradle.git && \
+    asdf plugin add cmake https://github.com/srivathsanmurali/asdf-cmake.git && \
+    asdf plugin add ollama https://github.com/virtualstaticvoid/asdf-ollama.git
+USER root
+
+# Layer 6: Claude Code — native installer
 USER agentbox
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV LANG=en_US.UTF-8
