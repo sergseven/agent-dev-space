@@ -65,26 +65,21 @@ fetch_workspaces() {
 # --- Find next free port base ---
 next_port_base() {
   local ip="$1"
-  # Check ports actually bound on the host (not just labels, which can be stale)
+  # Ask Docker directly which host ports are already bound (running containers only)
   local used_ports
   used_ports="$(vm_ssh "agentbox@$ip" \
-    "ss -tlnH 'sport >= 3000 and sport <= 3999' 2>/dev/null | awk '{print \$4}' | grep -oE '[0-9]+\$'" \
+    "docker ps --format '{{.Ports}}' 2>/dev/null | grep -oE '[0-9]+->[0-9]' | cut -d- -f1" \
     || true)"
 
   local base=3000
   while true; do
-    local port_end=$((base + 99))
     local ssh_port=$((base + 22))
-    # Check if any port in [base, base+99] plus the SSH port is already in use
-    local conflict=0
-    for p in $(seq "$base" "$port_end") "$ssh_port"; do
-      if echo "$used_ports" | grep -qx "$p" 2>/dev/null; then
-        conflict=1
-        break
-      fi
-    done
-    [[ $conflict -eq 0 ]] && break
-    base=$((base + 100))
+    # Conflict if the SSH port or the start of the app range is already bound
+    if echo "$used_ports" | grep -qE "^(${base}|${ssh_port})$" 2>/dev/null; then
+      base=$((base + 100))
+    else
+      break
+    fi
   done
   echo "$base"
 }
@@ -133,7 +128,8 @@ create_workspace() {
   local port_end=$((port_base + 99))
   local ssh_port=$((port_base + 22))
 
-  vm_ssh "agentbox@$ip" "docker run -d \
+  local create_err
+  if ! create_err=$(vm_ssh "agentbox@$ip" "docker run -d \
     --name ws-${ws_name} \
     --hostname ${ws_name} \
     --restart unless-stopped \
@@ -142,11 +138,23 @@ create_workspace() {
     -v /home/agentbox/.ssh-agent:/home/agentbox/.ssh-agent \
     -p ${port_base}-${port_end}:3000-3099 \
     -p ${ssh_port}:22 \
-    agent-dev-space:latest && \
-    docker cp /home/agentbox/.config/workspace/.gitconfig ws-${ws_name}:/home/agentbox/.gitconfig && \
+    agent-dev-space:latest" 2>&1); then
+    err "Failed to create container: $create_err"
+    vm_ssh "agentbox@$ip" "docker rm -f ws-${ws_name}" &>/dev/null || true
+    sleep 2
+    return 1
+  fi
+
+  if ! vm_ssh "agentbox@$ip" \
+    "docker cp /home/agentbox/.config/workspace/.gitconfig ws-${ws_name}:/home/agentbox/.gitconfig && \
     docker exec ws-${ws_name} chown agentbox:agentbox /home/agentbox/.gitconfig && \
     docker cp /home/agentbox/.config/workspace/.claude ws-${ws_name}:/home/agentbox/.claude-init && \
-    docker exec ws-${ws_name} bash -c 'cp -rn /home/agentbox/.claude-init/* /home/agentbox/.claude/ 2>/dev/null; rm -rf /home/agentbox/.claude-init; chown -R agentbox:agentbox /home/agentbox/.claude'" >/dev/null
+    docker exec ws-${ws_name} bash -c 'cp -rn /home/agentbox/.claude-init/* /home/agentbox/.claude/ 2>/dev/null; rm -rf /home/agentbox/.claude-init; chown -R agentbox:agentbox /home/agentbox/.claude'" \
+    >/dev/null 2>&1; then
+    err "Container started but config setup failed. Container left running — select it from the TUI."
+    sleep 2
+    return 1
+  fi
 
   echo -e "  ${GREEN}▸${NC} Workspace ${BOLD}${ws_name}${NC} created (ports ${port_base}-${port_end})"
   echo -e "  ${GREEN}▸${NC} Connecting to tmux session ${BOLD}claude${NC}..."
