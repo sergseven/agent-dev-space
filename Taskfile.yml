@@ -140,6 +140,13 @@ tasks:
 
   # --- Workspaces ---
 
+  workspace:test:
+    desc: Smoke-test the local workspace Docker image (agent-dev-space:latest)
+    cmds:
+      - ./scripts/test-workspace-image.sh {{.IMAGE}}
+    vars:
+      IMAGE: '{{default "agent-dev-space:latest" .IMAGE}}'
+
   workspace:list:
     desc: List all workspaces on the VM
     cmds:
