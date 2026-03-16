@@ -6,6 +6,16 @@ if [ -z "$SSH_AUTH_SOCK" ] && [ -S "$HOME/.ssh-agent/agent.sock" ]; then
 fi
 
 # --- JAVA_HOME (asdf-java doesn't set it automatically) ---
-if [ -f "$ASDF_DIR/plugins/java/set-java-home.bash" ]; then
-    . "$ASDF_DIR/plugins/java/set-java-home.bash"
+if [ -f "${ASDF_DATA_DIR:-$HOME/.asdf}/plugins/java/set-java-home.bash" ]; then
+    . "${ASDF_DATA_DIR:-$HOME/.asdf}/plugins/java/set-java-home.bash"
 fi
+
+# --- Auto-install asdf tools when entering a directory with .tool-versions ---
+_asdf_auto_install() {
+    if [ -f .tool-versions ]; then
+        asdf install 2>/dev/null
+    fi
+}
+cd() { builtin cd "$@" && _asdf_auto_install; }
+# Run once on shell start in case we're already in a project dir
+_asdf_auto_install
