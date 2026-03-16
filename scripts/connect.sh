@@ -125,7 +125,6 @@ create_workspace() {
 
   local port_base
   port_base="$(next_port_base "$ip")"
-  local port_end=$((port_base + 99))
   local ssh_port=$((port_base + 22))
 
   local create_err
@@ -136,7 +135,6 @@ create_workspace() {
     --label ads.port-base=${port_base} \
     -v /home/agentbox/.config/workspace/.ssh:/home/agentbox/.ssh:ro \
     -v /home/agentbox/.ssh-agent:/home/agentbox/.ssh-agent \
-    -p ${port_base}-${port_end}:3000-3099 \
     -p ${ssh_port}:22 \
     agent-dev-space:latest" 2>&1); then
     err "Failed to create container: $create_err"
@@ -156,7 +154,7 @@ create_workspace() {
     return 1
   fi
 
-  echo -e "  ${GREEN}▸${NC} Workspace ${BOLD}${ws_name}${NC} created (ports ${port_base}-${port_end})"
+  echo -e "  ${GREEN}▸${NC} Workspace ${BOLD}${ws_name}${NC} created (SSH port ${ssh_port})"
   echo -e "  ${GREEN}▸${NC} Connecting to tmux session ${BOLD}claude${NC}..."
   echo ""
 
