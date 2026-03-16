@@ -59,6 +59,17 @@ for plugin in nodejs java gradle cmake ollama android-sdk; do
     && pass "asdf plugin: $plugin" || fail "asdf plugin: $plugin"
 done
 
+# --- Java global install ---
+echo "Java:"
+JAVA_VER=$(run "asdf current java 2>/dev/null" 2>/dev/null | awk 'NR==2{print $2}' || true)
+if echo "$JAVA_VER" | grep -q "^temurin-21"; then
+  pass "java global: $JAVA_VER"
+else
+  fail "java global temurin-21.x (got: ${JAVA_VER:-not set})"
+fi
+run "java -version" >/dev/null 2>&1 && pass "java -version works" || fail "java -version works"
+run "asdf which java" >/dev/null 2>&1 && pass "asdf which java (no 'unknown command' error)" || fail "asdf which java"
+
 # --- SSH daemon ---
 echo "SSH:"
 run "pgrep sshd" >/dev/null && pass "sshd running" || fail "sshd running"

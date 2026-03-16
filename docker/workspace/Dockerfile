@@ -69,6 +69,12 @@ RUN echo '. <(asdf completion bash 2>/dev/null)' >> ~/.bashrc && \
     asdf plugin add cmake       https://github.com/srivathsanmurali/asdf-cmake.git && \
     asdf plugin add ollama      https://github.com/virtualstaticvoid/asdf-ollama.git && \
     asdf plugin add android-sdk https://github.com/arcticShadow/asdf-android.git
+
+# Layer 5b: Install global Java 21 LTS so JAVA_HOME resolves and no "unknown command" on shell start
+# asdf v0.18 Go binary uses "asdf set -u" (not "asdf global") to set user-level default
+RUN asdf install java temurin-21.0.10+7.0.LTS && \
+    asdf set -u java temurin-21.0.10+7.0.LTS && \
+    java -version
 USER root
 
 # JAVA_HOME for all session types (login shells, IDE SSH sessions, etc.)

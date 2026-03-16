@@ -55,10 +55,12 @@ format_time() {
 
 # git hash of the docker/workspace tree — used to detect stale images on the VM
 workspace_git_hash() {
-  git -C "$PROJECT_DIR" log -1 --format=%H -- docker/workspace 2>/dev/null || echo "unknown"
+  # Hash actual file contents so uncommitted changes are detected
+  find "$PROJECT_DIR/docker/workspace" -type f | sort | \
+    xargs sha256sum 2>/dev/null | sha256sum | awk '{print $1}'
 }
 
-# Rebuild the workspace image on the VM if it's behind the local git tree
+# Rebuild the workspace image on the VM if it's behind the local docker/workspace tree
 ensure_image_fresh() {
   local ip="$1"
 
@@ -73,18 +75,21 @@ ensure_image_fresh() {
   fi
 
   echo -e "\n  ${YELLOW}▸${NC} Workspace image is outdated — rebuilding on VM..."
-  echo -e "  ${DIM}(local: ${local_hash:0:8}  vm: ${remote_hash:0:8:-})${NC}"
+  echo -e "  ${DIM}(local: ${local_hash:0:8}  vm: ${remote_hash:0:8})${NC}"
   echo ""
 
   tar -C "$PROJECT_DIR/docker" -cf - workspace 2>/dev/null | \
     vm_ssh "agentbox@$ip" \
-      "tar -C /tmp -xf - && rm -rf /tmp/docker-workspace && mv /tmp/workspace /tmp/docker-workspace" \
-    2>/dev/null
+      "tar -C /tmp -xf - && rm -rf /tmp/docker-workspace && mv /tmp/workspace /tmp/docker-workspace"
 
-  vm_ssh "agentbox@$ip" \
+  local build_log
+  if ! build_log=$(vm_ssh "agentbox@$ip" \
     "docker build --label ads.workspace.git-hash=${local_hash} \
-      -t agent-dev-space:latest /tmp/docker-workspace" \
-    >/dev/null 2>&1
+      -t agent-dev-space:latest /tmp/docker-workspace 2>&1"); then
+    echo -e "  ${RED}✗${NC} Image build failed:"
+    echo "$build_log" | tail -20 | sed 's/^/    /'
+    return 1
+  fi
 
   echo -e "  ${GREEN}▸${NC} Image updated (${local_hash:0:8})."
   echo ""

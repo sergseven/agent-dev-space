@@ -1,3 +1,7 @@
+# --- asdf shims on PATH (set here so it works for ssh/sudo sessions too) ---
+export ASDF_DATA_DIR="${ASDF_DATA_DIR:-$HOME/.asdf}"
+export PATH="$ASDF_DATA_DIR/shims:$PATH"
+
 # --- SSH agent forwarding ---
 # In containers: agent socket is mounted at ~/.ssh-agent/agent.sock via socat on host
 # On host: socat block in host .bashrc handles the forwarding
