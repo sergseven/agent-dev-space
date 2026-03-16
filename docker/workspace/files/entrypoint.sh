@@ -14,6 +14,8 @@ PasswordAuthentication no
 ChallengeResponseAuthentication no
 UsePAM yes
 PrintMotd no
+ClientAliveInterval 30
+ClientAliveCountMax 3
 EOF'
 
 # Start SSH daemon

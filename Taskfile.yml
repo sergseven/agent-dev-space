@@ -5,7 +5,7 @@ dotenv: [".env"]
 vars:
   STATE_FILE: .agentbox-state
   KNOWN_HOSTS: .agentbox-known-hosts
-  SSH_OPTS: -A -o UserKnownHostsFile={{.KNOWN_HOSTS}} -o StrictHostKeyChecking=no
+  SSH_OPTS: -A -o UserKnownHostsFile={{.KNOWN_HOSTS}} -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3
 
 tasks:
   # --- Core lifecycle ---
