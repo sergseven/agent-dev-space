@@ -118,15 +118,11 @@ create_workspace() {
     return 1
   fi
 
-  # Idempotent: if workspace already exists, ensure it's running and connect
+  # Check if workspace already exists
   if vm_ssh "agentbox@$ip" "docker inspect ws-${ws_name}" &>/dev/null 2>&1; then
-    echo ""
-    echo -e "  ${DIM}Workspace already exists — starting if stopped...${NC}"
-    vm_ssh "agentbox@$ip" "docker start ws-${ws_name}" >/dev/null 2>&1 || true
-    echo -e "  ${GREEN}▸${NC} Connecting to workspace ${BOLD}${ws_name}${NC}..."
-    echo ""
-    exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" \
-      "docker exec -it ws-${ws_name} tmux new-session -A -s claude"
+    err "Workspace '${ws_name}' already exists."
+    sleep 1
+    return 1
   fi
 
   echo ""
