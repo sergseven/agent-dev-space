@@ -161,6 +161,9 @@ create_workspace() {
     return 1
   fi
 
+  # Ensure image is up to date before creating a container from it
+  ensure_image_fresh "$ip"
+
   echo ""
   echo -e "  ${DIM}Creating workspace...${NC}"
 
@@ -207,9 +210,6 @@ create_workspace() {
 # --- Workspace selector TUI ---
 run_workspace_selector() {
   local ip="$1"
-
-  # Auto-rebuild image if local docker/workspace changed since last VM build
-  ensure_image_fresh "$ip"
 
   # Hide cursor
   tput civis 2>/dev/null || true
