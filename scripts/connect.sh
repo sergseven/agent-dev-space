@@ -50,6 +50,47 @@ format_time() {
 }
 
 # ============================================================================
+# Image freshness check + auto-rebuild
+# ============================================================================
+
+# git hash of the docker/workspace tree — used to detect stale images on the VM
+workspace_git_hash() {
+  git -C "$PROJECT_DIR" log -1 --format=%H -- docker/workspace 2>/dev/null || echo "unknown"
+}
+
+# Rebuild the workspace image on the VM if it's behind the local git tree
+ensure_image_fresh() {
+  local ip="$1"
+
+  local local_hash remote_hash
+  local_hash="$(workspace_git_hash)"
+  remote_hash="$(vm_ssh "agentbox@$ip" \
+    "docker inspect agent-dev-space:latest --format '{{index .Config.Labels \"ads.workspace.git-hash\"}}'" \
+    2>/dev/null || echo "")"
+
+  if [[ "$local_hash" == "$remote_hash" ]]; then
+    return 0
+  fi
+
+  echo -e "\n  ${YELLOW}▸${NC} Workspace image is outdated — rebuilding on VM..."
+  echo -e "  ${DIM}(local: ${local_hash:0:8}  vm: ${remote_hash:0:8:-})${NC}"
+  echo ""
+
+  tar -C "$PROJECT_DIR/docker" -cf - workspace 2>/dev/null | \
+    vm_ssh "agentbox@$ip" \
+      "tar -C /tmp -xf - && rm -rf /tmp/docker-workspace && mv /tmp/workspace /tmp/docker-workspace" \
+    2>/dev/null
+
+  vm_ssh "agentbox@$ip" \
+    "docker build --label ads.workspace.git-hash=${local_hash} \
+      -t agent-dev-space:latest /tmp/docker-workspace" \
+    >/dev/null 2>&1
+
+  echo -e "  ${GREEN}▸${NC} Image updated (${local_hash:0:8})."
+  echo ""
+}
+
+# ============================================================================
 # STEP 1: Workspace selection
 # ============================================================================
 
@@ -166,6 +207,9 @@ create_workspace() {
 # --- Workspace selector TUI ---
 run_workspace_selector() {
   local ip="$1"
+
+  # Auto-rebuild image if local docker/workspace changed since last VM build
+  ensure_image_fresh "$ip"
 
   # Hide cursor
   tput civis 2>/dev/null || true
