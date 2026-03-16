@@ -65,13 +65,25 @@ fetch_workspaces() {
 # --- Find next free port base ---
 next_port_base() {
   local ip="$1"
-  local used_bases
-  used_bases="$(vm_ssh "agentbox@$ip" \
-    "docker inspect --format '{{index .Config.Labels \"ads.port-base\"}}' \$(docker ps -aq --filter 'name=^ws-') 2>/dev/null" \
+  # Check ports actually bound on the host (not just labels, which can be stale)
+  local used_ports
+  used_ports="$(vm_ssh "agentbox@$ip" \
+    "ss -tlnH 'sport >= 3000 and sport <= 3999' 2>/dev/null | awk '{print \$4}' | grep -oE '[0-9]+\$'" \
     || true)"
 
   local base=3000
-  while echo "$used_bases" | grep -qx "$base" 2>/dev/null; do
+  while true; do
+    local port_end=$((base + 99))
+    local ssh_port=$((base + 22))
+    # Check if any port in [base, base+99] plus the SSH port is already in use
+    local conflict=0
+    for p in $(seq "$base" "$port_end") "$ssh_port"; do
+      if echo "$used_ports" | grep -qx "$p" 2>/dev/null; then
+        conflict=1
+        break
+      fi
+    done
+    [[ $conflict -eq 0 ]] && break
     base=$((base + 100))
   done
   echo "$base"
@@ -106,11 +118,15 @@ create_workspace() {
     return 1
   fi
 
-  # Check if workspace already exists
-  if vm_ssh "agentbox@$ip" "docker inspect ws-${ws_name}" &>/dev/null; then
-    err "Workspace '${ws_name}' already exists."
-    sleep 1
-    return 1
+  # Idempotent: if workspace already exists, ensure it's running and connect
+  if vm_ssh "agentbox@$ip" "docker inspect ws-${ws_name}" &>/dev/null 2>&1; then
+    echo ""
+    echo -e "  ${DIM}Workspace already exists — starting if stopped...${NC}"
+    vm_ssh "agentbox@$ip" "docker start ws-${ws_name}" >/dev/null 2>&1 || true
+    echo -e "  ${GREEN}▸${NC} Connecting to workspace ${BOLD}${ws_name}${NC}..."
+    echo ""
+    exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" \
+      "docker exec -it ws-${ws_name} tmux new-session -A -s claude"
   fi
 
   echo ""
