@@ -36,6 +36,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
 RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" -o /usr/local/bin/yq && \
     chmod +x /usr/local/bin/yq
 
+# Layer 3b: Taskfile (task runner)
+RUN curl -fsSL https://taskfile.dev/install.sh | sh -s -- -d -b /usr/local/bin && \
+    task --version
+
 # Layer 4: VS Code CLI (for Remote Tunnels)
 RUN curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64" \
       -o /tmp/vscode-cli.tar.gz && \
@@ -49,20 +53,29 @@ RUN userdel -r ubuntu 2>/dev/null || true && \
     echo "agentbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agentbox && \
     chmod 0440 /etc/sudoers.d/agentbox
 
-# Layer 5: asdf version manager + plugins
+# Layer 5: asdf v0.18.1 Go binary + plugins
+# Binary installed system-wide; plugin/shim data lives in ASDF_DATA_DIR per user.
+RUN curl -fsSL "https://github.com/asdf-vm/asdf/releases/download/v0.18.1/asdf-v0.18.1-linux-amd64.tar.gz" \
+    | tar -xz -C /usr/local/bin && \
+    asdf version
+
 USER agentbox
-ENV ASDF_DIR=/home/agentbox/.asdf
 ENV ASDF_DATA_DIR=/home/agentbox/.asdf
-ENV PATH="/home/agentbox/.asdf/shims:/home/agentbox/.asdf/bin:${PATH}"
-RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.15.0 && \
-    echo '. "$HOME/.asdf/asdf.sh"' >> ~/.bashrc && \
-    echo '. "$HOME/.asdf/completions/asdf.bash"' >> ~/.bashrc && \
-    asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git && \
-    asdf plugin add java https://github.com/halcyon/asdf-java.git && \
-    asdf plugin add gradle https://github.com/rfrancis/asdf-gradle.git && \
-    asdf plugin add cmake https://github.com/srivathsanmurali/asdf-cmake.git && \
-    asdf plugin add ollama https://github.com/virtualstaticvoid/asdf-ollama.git
+ENV PATH="/home/agentbox/.asdf/shims:${PATH}"
+RUN echo '. <(asdf completion bash 2>/dev/null)' >> ~/.bashrc && \
+    asdf plugin add nodejs      https://github.com/asdf-vm/asdf-nodejs.git && \
+    asdf plugin add java        https://github.com/halcyon/asdf-java.git && \
+    asdf plugin add gradle      https://github.com/rfrancis/asdf-gradle.git && \
+    asdf plugin add cmake       https://github.com/srivathsanmurali/asdf-cmake.git && \
+    asdf plugin add ollama      https://github.com/virtualstaticvoid/asdf-ollama.git && \
+    asdf plugin add android-sdk https://github.com/arcticShadow/asdf-android.git
 USER root
+
+# JAVA_HOME for all session types (login shells, IDE SSH sessions, etc.)
+# Sourced via /etc/profile → /etc/profile.d, so it works without .bashrc.
+RUN echo '. "$ASDF_DATA_DIR/plugins/java/set-java-home.bash" 2>/dev/null || true' \
+    > /etc/profile.d/asdf-java-home.sh && \
+    chmod 644 /etc/profile.d/asdf-java-home.sh
 
 # Layer 6: Claude Code — native installer
 USER agentbox
