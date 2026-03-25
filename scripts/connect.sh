@@ -357,7 +357,7 @@ run_workspace_selector() {
           ;;
         $'\x1b')  # Escape sequence
           local seq
-          IFS= read -rsn2 -t 0.1 seq || true
+          IFS= read -rsn2 -t 1 seq || true
           case "$seq" in
             '[A')  (( selected > 0 )) && selected=$((selected - 1)) ;;
             '[B')  (( selected < total_items - 1 )) && selected=$((selected + 1)) ;;
@@ -548,7 +548,7 @@ run_session_selector() {
         ;;
       $'\x1b')  # Escape sequence
         local seq
-        IFS= read -rsn2 -t 0.1 seq || true
+        IFS= read -rsn2 -t 1 seq || true
         case "$seq" in
           '[A')  (( selected > 0 )) && selected=$((selected - 1)) ;;
           '[B')  (( selected < total_items - 1 )) && selected=$((selected + 1)) ;;
