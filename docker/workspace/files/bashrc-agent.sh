@@ -1,4 +1,7 @@
-# --- asdf shims on PATH (set here so it works for ssh/sudo sessions too) ---
+# --- User-local binaries (claude, etc.) and asdf shims on PATH ---
+# ~/.local/bin is only added by ~/.profile (login shells); add it here so it
+# works in non-login tmux/docker-exec bash sessions too.
+export PATH="$HOME/.local/bin:$PATH"
 export ASDF_DATA_DIR="${ASDF_DATA_DIR:-$HOME/.asdf}"
 export PATH="$ASDF_DATA_DIR/shims:$PATH"
 

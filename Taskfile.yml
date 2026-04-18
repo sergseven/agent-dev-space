@@ -29,6 +29,11 @@ tasks:
 
   # --- Connection ---
 
+  init:
+    desc: Populate .agentbox-state from an existing Hetzner VM (use on a new machine)
+    cmds:
+      - ./scripts/init-state.sh
+
   connect:
     desc: Interactive workspace + tmux session selector
     cmds:
@@ -196,7 +201,7 @@ tasks:
       - scp {{.SSH_OPTS}} scripts/setup-vm.sh agentbox@{{.SERVER_IP}}:/tmp/setup-vm.sh
       - tar -C docker -cf - workspace | ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "tar -C /tmp -xf - && rm -rf /tmp/docker-workspace && mv /tmp/workspace /tmp/docker-workspace"
       - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "sudo bash /tmp/setup-vm.sh && rm -f /tmp/setup-vm.sh"
-      - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "docker build --label ads.workspace.git-hash=$(git log -1 --format=%H -- docker/workspace) -t agent-dev-space:latest /tmp/docker-workspace"
+      - ssh {{.SSH_OPTS}} agentbox@{{.SERVER_IP}} "docker build --label ads.workspace.git-hash=$(find docker/workspace -type f | sort | xargs sha256sum 2>/dev/null | sha256sum | awk '{print $1}') -t agent-dev-space:latest /tmp/docker-workspace"
     vars:
       SERVER_IP:
         sh: grep '^SERVER_IP=' {{.STATE_FILE}} | cut -d= -f2-

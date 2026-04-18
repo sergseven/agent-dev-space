@@ -181,6 +181,7 @@ create_workspace() {
     --name ws-${ws_name} \
     --hostname ${ws_name} \
     --restart unless-stopped \
+    --init \
     --label ads.port-base=${port_base} \
     -v /home/agentbox/.config/workspace/.ssh:/home/agentbox/.ssh:ro \
     -v /home/agentbox/.ssh-agent:/home/agentbox/.ssh-agent \
@@ -209,7 +210,7 @@ create_workspace() {
 
   # Attach directly to a new tmux session
   exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" \
-    "docker exec -it ws-${ws_name} tmux new-session -s claude"
+    "bash -i -c \"docker exec -e SSH_AUTH_SOCK=/home/agentbox/.ssh-agent/agent.sock -it ws-${ws_name} tmux new-session -s claude\""
 }
 
 # --- Workspace selector TUI ---
@@ -413,7 +414,7 @@ create_new_session() {
   echo ""
 
   exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" \
-    "docker exec -it ws-${ws_name} tmux new-session -A -s '${session_name}'"
+    "bash -i -c \"docker exec -e SSH_AUTH_SOCK=/home/agentbox/.ssh-agent/agent.sock -it ws-${ws_name} tmux new-session -A -s '${session_name}'\""
 }
 
 # --- Attach to existing session in workspace ---
@@ -427,7 +428,7 @@ attach_session() {
   echo ""
 
   exec ssh "${SSH_OPTS[@]}" -t "agentbox@$ip" \
-    "docker exec -it ws-${ws_name} tmux attach -t '${name}'"
+    "bash -i -c \"docker exec -e SSH_AUTH_SOCK=/home/agentbox/.ssh-agent/agent.sock -it ws-${ws_name} tmux attach -t '${name}'\""
 }
 
 # --- Session selector TUI ---
